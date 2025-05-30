@@ -26,6 +26,7 @@ pub use utils::error::{CrownError, Result};
 
 pub use drivers::*;
 
+use std::env;
 use std::path::PathBuf;
 
 /// Returns the default directory where kernel data is stored.
@@ -47,9 +48,18 @@ pub fn default_data_dir(dir_name: &str) -> PathBuf {
     PathBuf::from(format!("./.data.{}", dir_name))
 }
 
+//pub fn system_data_dir() -> PathBuf {
+//    let home_dir = dirs::home_dir().expect("Failed to get home directory");
+//    home_dir.join(".nockapp")
+//}
+
 pub fn system_data_dir() -> PathBuf {
-    let home_dir = dirs::home_dir().expect("Failed to get home directory");
-    home_dir.join(".nockapp")
+    let base_dir = env::var("NOCKAPP_HOME")
+        .ok().map(PathBuf::from)
+        .or_else(|| dirs::home_dir())
+        .expect("Failed to determine base directory for system data");
+
+    base_dir.join(".nockapp")
 }
 
 /// Default size for the Nock stack (1 GB)

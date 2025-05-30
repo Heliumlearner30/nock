@@ -307,8 +307,11 @@ where
 
     // ?:  =(~ mp)
     if mp.is_atom() {
-        // init-zero
-        return Ok(F::zero());
+        if mp.is_direct() && mp.as_direct()?.data() == 0 {
+            return Ok(F::zero());
+        } else {
+            return jet_err();
+        }
     }
 
     // %+  roll  ~(tap by mp)

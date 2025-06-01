@@ -747,7 +747,26 @@
       ::
           %set-constants
         `k(constants p.command)
+      ::
+          %set-kernel-params
+        ?>  ?=([%set-kernel-params *] command)
+        =/  params=(list [@tas *])  `(list [@tas *])`p.command
+        =/  pow-len-param=(unit *)  (find-param %pow-proof-length params)
+        ?~  pow-len-param
+          ~&  %dumbnet-set-kernel-params-no-pow-len  `k
+        ?.  ?=(@ -.u.pow-len-param)
+          ~&  %dumbnet-set-kernel-params-pow-len-not-atom  `k
+        =.  pow-len-cfg.a.k  (just -.u.pow-len-param)
+        ~&  %dumbnet-set-kernel-params-success  `k
+
       ==
+      ::
+      ++  find-param
+        |=  [key=@tas params=(list [@tas *])]
+        ^-  (unit *)
+        ?~  params  ~
+        ?:  =(key -.i.params)  `+.i.params
+        $(params t.params)
       ::
       ++  do-born
         ^-  [(list effect:dk) kernel-state:dk]
@@ -940,9 +959,14 @@
         =/  commit=block-commitment:t
           (block-commitment:page:t candidate-block.m.k)
         =.  next-nonce.m.k  nonce
+        =/  current-pow-len=@
+          ?~  pow-len-cfg.a.k
+            pow-len:zeke
+          u.pow-len-cfg.a.k
+        ~&  bau+current-pow-len
         ~&  mining-on+nonce
         :_  k
-        [%mine pow-len:zeke commit nonce]~
+        [%mine current-pow-len commit nonce]~
     --::  +poke
   --::  +kernel
 --

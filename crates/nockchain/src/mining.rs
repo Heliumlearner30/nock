@@ -71,9 +71,12 @@ impl FromStr for MiningKeyConfig {
     }
 }
 
+use std::collections::VecDeque;
+
 pub fn create_mining_driver(
     mining_config: Option<Vec<MiningKeyConfig>>,
     mine: bool,
+    mining_threads: Option<usize>,
     init_complete_tx: Option<tokio::sync::oneshot::Sender<()>>,
 ) -> IODriverFn {
     Box::new(move |mut handle| {
@@ -111,15 +114,36 @@ pub fn create_mining_driver(
             if !mine {
                 return Ok(());
             }
-            let mut next_attempt: Option<NounSlab> = None;
+
+            let num_threads_to_use = match mining_threads {
+                Some(0) | None => 1,
+                Some(n) => n,
+            };
+
+            const MAX_QUEUE_LEN_FACTOR: usize = 2;
+            let max_queue_len = num_threads_to_use * MAX_QUEUE_LEN_FACTOR;
+
+            let mut next_candidate_queue: VecDeque<NounSlab> = VecDeque::with_capacity(max_queue_len);
             let mut current_attempt: tokio::task::JoinSet<()> = tokio::task::JoinSet::new();
 
             loop {
                 tokio::select! {
+                    biased; // Process queue before new effects
+
+                    // Spawn from queue if slots are free and queue has items
+                    _ = async {}, if !next_candidate_queue.is_empty() && current_attempt.len() < num_threads_to_use => {
+                        if let Some(candidate_slab) = next_candidate_queue.pop_front() {
+                            let (cur_handle, attempt_handle) = handle.dup();
+                            handle = cur_handle;
+                            current_attempt.spawn(mining_attempt(candidate_slab, attempt_handle));
+                        }
+                    },
+
+                    // Handle new effects
                     effect_res = handle.next_effect() => {
                         let Ok(effect) = effect_res else {
-                          warn!("Error receiving effect in mining driver: {effect_res:?}");
-                        continue;
+                            warn!("Error receiving effect in mining driver: {effect_res:?}");
+                            continue;
                         };
                         let Ok(effect_cell) = (unsafe { effect.root().as_cell() }) else {
                             drop(effect);
@@ -132,27 +156,24 @@ pub fn create_mining_driver(
                                 slab.copy_into(effect_cell.tail());
                                 slab
                             };
-                            if !current_attempt.is_empty() {
-                                next_attempt = Some(candidate_slab);
-                            } else {
+                            if current_attempt.len() < num_threads_to_use {
                                 let (cur_handle, attempt_handle) = handle.dup();
                                 handle = cur_handle;
                                 current_attempt.spawn(mining_attempt(candidate_slab, attempt_handle));
+                            } else if next_candidate_queue.len() < max_queue_len {
+                                next_candidate_queue.push_back(candidate_slab);
+                            } else {
+                                warn!("Mining queue full, discarding candidate.");
                             }
                         }
                     },
-                    mining_attempt_res = current_attempt.join_next(), if !current_attempt.is_empty()  => {
+
+                    // Handle completed attempts
+                    mining_attempt_res = current_attempt.join_next(), if !current_attempt.is_empty() => {
                         if let Some(Err(e)) = mining_attempt_res {
                             warn!("Error during mining attempt: {e:?}");
                         }
-                        let Some(candidate_slab) = next_attempt else {
-                            continue;
-                        };
-                        next_attempt = None;
-                        let (cur_handle, attempt_handle) = handle.dup();
-                        handle = cur_handle;
-                        current_attempt.spawn(mining_attempt(candidate_slab, attempt_handle));
-
+                        // Loop will automatically try to fill the slot if the queue has items due to biased select
                     }
                 }
             }

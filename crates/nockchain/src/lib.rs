@@ -242,6 +242,18 @@ pub struct NockchainCli {
     pub max_system_memory_fraction: Option<f64>,
     #[arg(long, help = "Maximum process memory for connection limits (bytes)")]
     pub max_system_memory_bytes: Option<usize>,
+    #[arg(
+        long,
+        help = "Number of threads to use for mining (defaults to 1)",
+        value_parser = value_parser!(usize)
+    )]
+    pub mining_threads: Option<usize>,
+    #[arg(
+        long,
+        help = "Proof-of-Work STARK proof length (defaults to kernel default)",
+        value_parser = value_parser!(u64)
+    )]
+    pub pow_proof_length: Option<u64>,
 }
 
 impl NockchainCli {
@@ -378,6 +390,28 @@ pub async fn init_with_kernel(
         None,
     )
     .await?;
+
+    // Send initial kernel parameters if provided
+    if let Some(ref current_cli) = cli {
+        if let Some(pow_len) = current_cli.pow_proof_length {
+            let mut slab = NounSlab::new();
+            let tag = T(&mut slab, &[D(tas!(b"command")), D(tas!(b"set-kernel-params")), D(0)]);
+            let pow_len_atom = nockvm::noun::Atom::from_u64(&mut slab, pow_len).unwrap();
+            let param_pair = T(&mut slab, &[D(tas!(b"pow-proof-length")), pow_len_atom.as_noun()]);
+            let params_list = T(&mut slab, &[param_pair, D(0)]); // List of a single param for now
+            let poke_payload = T(&mut slab, &[tag, params_list]);
+            slab.set_root(poke_payload);
+
+            // Using SystemWire for this initial config poke.
+            // Alternatively, a new specific wire could be defined if preferred.
+            if let Err(e) = nockapp.poke(nockapp::wire::SystemWire.to_wire(), slab).await {
+                tracing::error!("Failed to poke kernel with pow_proof_length: {:?}", e);
+                // Depending on criticality, might return Err here.
+            } else {
+                tracing::info!("Successfully poked kernel with pow_proof_length: {}", pow_len);
+            }
+        }
+    }
 
     let keypair = {
         let keypair_path = Path::new(IDENTITY_PATH);
@@ -589,9 +623,14 @@ pub async fn init_with_kernel(
     });
 
     let mine = cli.as_ref().map_or(false, |c| c.mine);
+    let mining_threads = cli.as_ref().and_then(|c| c.mining_threads);
 
-    let mining_driver =
-        crate::mining::create_mining_driver(mining_config, mine, Some(mining_init_tx));
+    let mining_driver = crate::mining::create_mining_driver(
+        mining_config,
+        mine,
+        mining_threads,
+        Some(mining_init_tx),
+    );
     nockapp.add_io_driver(mining_driver).await;
 
     let libp2p_driver = nockchain_libp2p_io::nc::make_libp2p_driver(

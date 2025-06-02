@@ -91,7 +91,7 @@
 ::
 +$  command
   $+  command
-  $%  [%pow prf=proof:sp dig=tip5-hash-atom:zeke bc=digest:tip5:zeke nonce=noun-digest:tip5:zeke] :: check if a proof of work is good for the next block, issue a block if so
+  $%  [%pow prf=proof:sp dig=tip5-hash-atom:zeke bc=noun-digest:tip5:zeke nonce=noun-digest:tip5:zeke] :: check if a proof of work is good for the next block, issue a block if so
       [%set-mining-key p=@t]  ::  set $lock for coinbase in mined blocks
       [%set-mining-key-advanced p=(list [share=@ m=@ keys=(list @t)])]  :: multisig and/or split coinbases
       [%enable-mining p=?]  ::  switch for generating candidate blocks for mining
@@ -110,16 +110,21 @@
   $%  [%set-constants p=blockchain-constants:dt]
   ==
 ::
-::  commands that can only be performed if init-phase is %.y
+::  commands that can be performed if init-phase is %.y
 +$  init-command
-  $?  %set-constants
+  $?  %born
+      %set-mining-key
+      %set-mining-key-advanced
+      %enable-mining
+      init-only-command
+  ==
+::  commands that can *only* be performed if init-phase is %.y
++$  init-only-command
+  $?  %genesis
       %set-genesis-seal
       %btc-data
-      %genesis
-      %born
+      %set-constants
   ==
-::  commands that can only be performed if init-phase is %.n
-+$  non-init-command  ?(%timer %pow)
 ::
 +$  fact
   $+  fact
@@ -145,8 +150,8 @@
 ::
 +$  seen
   $+  seen
-  $%  [%block p=block-id:dt]  ::  block has been seen, don't reprocess
-      [%tx p=tx-id:dt]       ::  tx has been seen, don't reprocess
+  $%  [%block p=block-id:dt q=(unit page-number:dt)]  ::  block has been seen, don't reprocess
+      [%tx p=tx-id:dt]                                ::  tx has been seen, don't reprocess
   ==
 ::
 +$  span-field

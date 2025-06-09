@@ -75,8 +75,16 @@ nuke-hoonc-data:
 nuke-assets:
 	rm -f assets/*.jam
 
+.PHONY: nuke-dumb
+nuke-dumb:
+	rm -f assets/dumb.jam
+
 .PHONY: build-hoon-all
 build-hoon-all: nuke-assets update-hoonc ensure-dirs build-trivial $(HOON_TARGETS)
+	$(call show_env_vars)
+
+.PHONY: build-dumb
+build-dumb: nuke-dumb update-hoonc ensure-dirs build-trivial assets/dumb.jam
 	$(call show_env_vars)
 
 .PHONY: build-hoon

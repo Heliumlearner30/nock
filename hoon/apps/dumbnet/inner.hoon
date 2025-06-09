@@ -191,6 +191,16 @@
       ?~  heaviest-block
         ~
       `(to-page-summary:page:t (to-page:local-page:t u.heaviest-block))
+    ::
+        [%height ~]
+      ^-  (unit (unit page-number:t))
+      ?~  heaviest-block.c.k
+        [~ ~]
+      =/  heaviest-block  (~(get z-by blocks.c.k) u.heaviest-block.c.k)
+      ?~  heaviest-block
+        [~ ~]
+      =+  summary=(to-page-summary:page:t (to-page:local-page:t u.heaviest-block))
+      ``height.summary
     ==
   ::
   ++  poke

@@ -156,7 +156,10 @@
   ==
 ::
 +$  cause
-  $%  [%keygen entropy=byts salt=byts]
+  $%  
+      [%update-state ~]
+      [%nothing ~]
+      [%keygen entropy=byts salt=byts]
       [%derive-child key-type=?(%pub %prv) i=@ label=(unit @t)]
       [%import-keys keys=(list (pair trek meta))]
       [%export-keys ~]
@@ -1082,6 +1085,8 @@
     =^  pending-effs  state  handle-pending-commands
     [(weld effs pending-effs) state]
   ?-  -.cause
+      %nothing               (do-nothing cause)
+      %update-state          (do-update-state cause)
       %npc-bind              (handle-npc cause)
       %show                  (show state path.cause)
       %keygen                (do-keygen cause)
@@ -1118,6 +1123,24 @@
     ~&  >  "%file %write: {<cause>}"
     [[%exit 0]~ state]
   ==
+  ::
+  ++  do-nothing 
+    |=  =cause
+    ^-  [(list effect) ^state]
+    ?>  ?=(%nothing -.cause)
+    [[%exit 0]~ state]
+  ::
+  ++  do-update-state
+    |=  =cause
+    ^-  [(list effect) ^state]
+    ?>  ?=(%update-state -.cause)
+    =/  pid=(unit @ud)  (generate-pid:v %block)
+    ?~  pid  [[%exit 0]~ state]
+    =.  peek-requests.state  (~(put by peek-requests.state) u.pid %block)
+    =.  pending-commands.state
+      (~(put z-by:zo pending-commands.state) u.pid [%balance [%nothing ~]])
+    :_  state
+    [%npc u.pid [%peek /heavy]]~
   ::
   ++  handle-npc
     |=  =npc-cause

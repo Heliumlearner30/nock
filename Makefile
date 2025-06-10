@@ -79,12 +79,20 @@ nuke-assets:
 nuke-dumb:
 	rm -f assets/dumb.jam
 
+.PHONY: nuke-wallet
+nuke-wallet:
+	rm -f assets/wal.jam
+
 .PHONY: build-hoon-all
 build-hoon-all: nuke-assets update-hoonc ensure-dirs build-trivial $(HOON_TARGETS)
 	$(call show_env_vars)
 
 .PHONY: build-dumb
 build-dumb: nuke-dumb update-hoonc ensure-dirs build-trivial assets/dumb.jam
+	$(call show_env_vars)
+
+.PHONY: build-wallet
+build-wallet: nuke-wallet update-hoonc ensure-dirs build-trivial assets/wal.jam
 	$(call show_env_vars)
 
 .PHONY: build-hoon

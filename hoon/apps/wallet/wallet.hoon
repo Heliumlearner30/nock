@@ -585,6 +585,15 @@
       ?>  ?=(%coil -.meta)
       meta
     ::
+    ++  labels
+      =/  label-meta=(list meta)
+        %+  murn  (gulf 0 255)
+        |=  index=@ud
+        =/  =trek
+          :(welp base-path /[key-type] /[ud/index] /label)
+        (~(get of keys.state) trek)
+      (turn label-meta |=(=meta `*`+.meta))
+    ::
     ++  by-index
       |=  index=@ud
       ^-  coil
@@ -1010,14 +1019,43 @@
   %-  (debug "peek: {<state>}")
   ?+    path  ~
     ::
+      [%state ~]
+    ``state
+    ::
       [%balance ~]
     ``balance.state
     ::
       [%receive-address ~]
     ``receive-address.state
     ::
-      [%state ~]
-    ``state
+      [%seed-phrase ~]
+    =/  =meta  seed:get:v
+    =/  seedphrase=@t
+      ?:  ?=(%seed -.meta)
+        +.meta
+      %-  crip
+      ""
+    ``seedphrase
+    ::
+      [%master-pubkey ~]
+    =/  =meta  ~(master get:v %pub)
+    =/  master-pubkey=@t
+    %-  crip
+    ?:  ?=(%coil -.meta)
+      "{(en:base58:wrap p.key.meta)}"
+    ""
+    ``master-pubkey
+    ::
+      [%pubkeys ~]
+    =/  pubkeys  ~(coils get:v %pub)
+    ~&  -:!>(~(labels get:v %pub))
+    ~&  ~(labels get:v %pub)
+    =/  base58-keys=(list cord)
+      %+  turn  pubkeys
+      |=  =coil
+      =/  pubkey=schnorr-pubkey:transact  pub:(from-public:s10 [p.key cc]:coil)
+      (to-b58:schnorr-pubkey:transact pubkey)
+    ``(crip (join ' ' base58-keys))
   ==
 ::
 ++  poke

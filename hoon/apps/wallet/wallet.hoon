@@ -1019,14 +1019,19 @@
 ++  peek
   |=  =path
   ^-  (unit (unit *))
-  %-  (debug "peek: {<state>}")
+  :: %-  (debug "peek: {<state>}")
   ?+    path  ~
     ::
       [%state ~]
     ``state
     ::
       [%balance ~]
-    ``balance.state
+    =/  list-coins=(list coins:transact)
+      %+  turn
+        ~(val z-by:zo balance.state)
+      |=  =nnote:transact
+      assets.nnote
+    ``(roll list-coins add)
     ::
       [%receive-address ~]
     ``receive-address.state

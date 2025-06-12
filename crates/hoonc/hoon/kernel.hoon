@@ -3,7 +3,8 @@
 |%
 +$  state-0  [%0 *]
 +$  state-1  [%1 *]
-+$  state-2  [%2 cached-hoon=(unit (trap vase)) bc=build-cache pc=parse-cache]
++$  state-2  [%2 cached-hoon=(unit (trap vase)) bc=build-cache-0 pc=parse-cache-0]
++$  state-3  [%3 cached-hoon=(unit (trap vase)) bc=build-cache-1 pc=parse-cache-1]
 ::
 ++  empty-trap-vase
   ^-  (trap vase)
@@ -14,8 +15,9 @@
   $%  state-0
       state-1
       state-2
+      state-3
   ==
-+$  choo-state  state-2
++$  choo-state  state-3
 ::
 ++  moat  (keep choo-state)
 +$  cause
@@ -42,8 +44,13 @@
 ::
 +$  hash  @
 ::
++$  build-cache-0  (map hash (trap vase))
+::
++$  build-cache-1  (map hash [=path tase=(trap vase)])
+::
 ::  $build-cache: holds up to date cached build artifacts, keyed by merkle hash
-+$  build-cache  (map hash (trap vase))
+::
++$  build-cache  build-cache-1
 ::
 ::  $build-result: result of a build
 ::
@@ -67,9 +74,13 @@
   ==
 ::
 ::
++$  parse-cache-0  (map hash pile)
+::
++$  parse-cache-1  (map hash [=path =pile])
+::
 ::  $parse-cache: content addressed cache of preprocessed hoon files.
 ::
-+$  parse-cache  (map hash pile)
++$  parse-cache  parse-cache-1
 --
 ::
 =<
@@ -104,6 +115,10 @@
     *choo-state
   ::
       %2
+    ~>  %slog.[0 leaf+"update 2-to-3, starting from scratch"]
+    *choo-state
+  ::
+      %3
     ~>  %slog.[0 leaf+"no update"]
     old
   ::
@@ -460,29 +475,41 @@
 ++  create-target
   |=  [=entry dir=(map path cord)]
   ^-  [(trap vase) build-cache parse-cache]
-  =^  parsed-dir=(map path node)  pc
+  =/  [parsed-dir=(map path node) new-pc=parse-cache]
     (parse-dir entry dir)
   =/  all-nodes=(map path node)  parsed-dir
   =/  [dep-dag=merk-dag =path-dag]  (build-merk-dag all-nodes)
-  ::
-  ::  delete invalid cache entries in bc
-  =.  bc
-    %+  roll
-      ~(tap by bc)
-    |=  [[hash=@ *] bc=_bc]
-    ?:  (~(has by dep-dag) hash)
-      bc
-    (~(del by bc) hash)
-  ::
-  =/  compile
+  =/  [compiled=(trap vase) new-bc=build-cache]
     %:  compile-target
       pat.entry
       path-dag
       all-nodes
       bc
     ==
+ ::  delete invalid entries in pc
+  =.  new-pc
+    %-  malt
+    %+  skip
+      ~(tap by new-pc)
+    |=  [hash=@ =path *]
+    =/  file  (~(get by path-dag) path)
+    ?&  ?=(^ file)
+        !=(hash hash.u.file)
+        !(~(has by dep-dag) hash)
+    ==
+  ::  delete invalid entries in bc
+  =.  new-bc
+    %-  malt
+    %+  skip
+      ~(tap by new-bc)
+    |=  [hash=@ =path *]
+    =/  file  (~(get by path-dag) path)
+    ?&  ?=(^ file)
+        !=(hash hash.u.file)
+        !(~(has by dep-dag) hash)
+    ==
   ::
-  [(head compile) (tail compile) pc]
+  [compiled new-bc new-pc]
 ::
 ::  $parse-dir: parse $entry and get dependencies from $dir
 ::
@@ -493,7 +520,7 @@
 ++  parse-dir
   |=  [suf=entry dir=(map path cord)]
   ^-  [(map path node) parse-cache]
-  =|  new-pc=parse-cache
+  =/  new-pc=parse-cache  pc
   ~&  >  parsing+pat.suf
   |^
   =/  file=cord  (get-file suf dir)                   ::  get target file
@@ -510,11 +537,11 @@
     =/  =pile
       ?:  (~(has by pc) hash)
         ~&  parse-cache-hit+pat.suf
-        (~(got by pc) hash)
+        pile:(~(got by pc) hash)
       ~&  parse-cache-miss+pat.suf
       (parse-pile pat.suf (trip file))         ::  parse target file
     =/  deps=(list raut)  (resolve-pile pile dir)       ::  resolve deps
-    :_  (~(put by new-pc) hash pile)
+    :_  (~(put by new-pc) hash pat.suf pile)
     :*  pat.suf                                         ::  path
         hash                                            ::  hash
         deps                                            ::  deps
@@ -536,7 +563,7 @@
       =/  dep-hash  (shax dep-file)                     ::  hash dep file
       =^  dep-node=node  new-pc
         ?.  (is-hoon pax.i.deps)
-          :_  pc
+          :_  new-pc
           :*  pax.i.deps                                  ::  path
               dep-hash                                    ::  hash
               ~                                           ::  deps
@@ -546,13 +573,13 @@
         =/  dep-pile
           ?:  (~(has by pc) dep-hash)                     ::  check cache
             ~&  parse-cache-hit+pax.i.deps
-            (~(got by pc) dep-hash)
+            pile:(~(got by pc) dep-hash)
           ~&  parse-cache-miss+pax.i.deps
           (parse-pile pax.i.deps (trip dep-file))         ::  parse dep file
         ~&  >>  parsed+pax.i.deps
         =/  dep-deps  (resolve-pile dep-pile dir)         ::  resolve dep deps
         ~&  >>  resolved+pax.i.deps
-        :_  (~(put by new-pc) dep-hash dep-pile)              ::  cache parse
+        :_  (~(put by new-pc) dep-hash pax.i.deps dep-pile)      ::  cache parse
         :*  pax.i.deps
             dep-hash
             dep-deps
@@ -732,11 +759,11 @@
     ?:  (~(has by bc) dep-hash)
       ~&  >  build-cache-hit+path.n
       :_  bc
-      [%.y (~(got by bc) dep-hash)]
+      [%.y tase:(~(got by bc) dep-hash)]
     ~&  >  build-cache-miss+path.n
     =/  =build-result  (mule |.((build-node n path-dag bc)))
     =?  bc  ?=(%& -.build-result)
-      (~(put by bc) dep-hash p.build-result)
+      (~(put by bc) dep-hash path.n p.build-result)
     =-  ?.  ?=(%| -.build-result)  -
         ((slog p.build-result) -)
     [build-result bc]
@@ -778,7 +805,7 @@
       (~(got by path-dag) pax.r)
     =/  dep-vaz=(trap vase)
       ~|  "couldn't find artifact for {<pax.r>} in build cache"
-      (~(got by bc) dep-hash)
+      tase:(~(got by bc) dep-hash)
     ~&  >  attaching-face+face.r
     ::
     ::  Ford imports are included in the order that they appear in the deps.

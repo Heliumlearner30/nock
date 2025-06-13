@@ -103,10 +103,12 @@
     ::
         [%transactions ~]
       ^-  (unit (unit (z-mip block-id:t tx-id:t tx:t)))
+      ~&  txs.c.k
       ``txs.c.k
     ::
         [%raw-transactions ~]
       ^-  (unit (unit (z-map tx-id:t raw-tx:t)))
+      ~&  raw-txs.p.k
       ``raw-txs.p.k
     ::
     ::  For %block, %transaction, %raw-transaction, and %balance scries, the ID is
@@ -158,6 +160,7 @@
     ::
         [%desk-hash ~]
       ^-  (unit (unit (unit @uvI)))
+      ~&  desk-hash.a.k
       ``desk-hash.a.k
     ::
         [%mining-pubkeys ~]
@@ -190,7 +193,9 @@
       :-  pubkeys.m.k
       ?~  heaviest-block
         ~
-      `(to-page-summary:page:t (to-page:local-page:t u.heaviest-block))
+      =+  res=(to-page-summary:page:t (to-page:local-page:t u.heaviest-block))
+      ~&  res
+      `res
     ::
         [%height ~]
       ^-  (unit (unit page-number:t))

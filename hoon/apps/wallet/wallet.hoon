@@ -1031,13 +1031,12 @@
 ++  load
   |=  arg=^state
   ^-  ^state
-  =.  arg  set-receive-address:v
+  =.  arg  set-receive-address:~(. vault arg)
   arg
 ::
 ++  peek
   |=  =path
   ^-  (unit (unit *))
-  :: %-  (debug "peek: {<state>}")
   ?+    path  ~
     ::
       [%state ~]
@@ -1054,7 +1053,7 @@
       [%receive-address ~]
     ``receive-address.state
     ::
-      [%seed-phrase ~]
+      [%seedphrase ~]
     =/  =meta  seed:get:v
     =/  seedphrase=@t
       ?:  ?=(%seed -.meta)

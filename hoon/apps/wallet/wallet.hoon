@@ -1081,6 +1081,25 @@
       =/  pubkey=schnorr-pubkey:transact  pub:(from-public:s10 [p.key cc]:coil)
       (to-b58:schnorr-pubkey:transact pubkey)
     ``(crip (join ' ' base58-keys))
+    ::
+      [%notes ~]
+    %-  (debug "peek notes")
+    =/  note-objects=(list tape)
+      %+  turn
+        ~(val z-by:zo balance.state)
+      ::  construct note
+      |=  note=nnote:transact
+      ^-  tape
+      =+  name=(to-b58:nname:transact name.note)
+      =/  first=tape
+        :(weld (trip '"first":"') (trip first.name) (trip '",'))
+      =/  last=tape
+        :(weld (trip '"last":"') (trip last.name) (trip '",'))
+      =/  assets=tape
+        :(weld (trip '"assets":') "\"{<assets.note>}\"")
+      :(weld "\{" first last assets "}")
+    ``(crip :(weld "[" `tape`(zing (join "," note-objects)) "]"))
+  ::
   ==
 ::
 ++  poke

@@ -181,6 +181,7 @@
           file-path=@t                                 ::  location to write the draft
       ==
       [%sign-tx dat=draft index=(unit @ud) entropy=@]
+      [%sign-aeroe-tx dat=draft index=(unit @ud) file-path=@t entropy=@]
       [%list-pubkeys ~]
       [%list-notes ~]
       [%show-seedphrase ~]
@@ -1140,6 +1141,7 @@
       %keygen                (do-keygen cause)
       %derive-child          (do-derive-child cause)
       %sign-tx               (do-sign-tx cause)
+      %sign-aeroe-tx         (do-sign-aeroe-tx cause)
       %scan                  (do-scan cause)
       %list-notes            (do-list-notes cause)
       %list-notes-by-pubkey  (do-list-notes-by-pubkey cause)
@@ -2050,6 +2052,40 @@
     =/  =effect  [%file %write path draft-jam]
     :-  ~[effect [%exit 0]]
     state
+  ++  do-sign-aeroe-tx
+    |=  =cause
+    ?>  ?=(%sign-aeroe-tx -.cause)
+    %-  (debug "sign-tx: {<dat.cause>}")
+    ::  get private key at specified index, or first derived key if no index
+    =/  private-keys=(list coil)  ~(coils get:v %prv)
+    ?~  private-keys
+      ~|("No private keys available for signing" !!)
+    =/  sender=coil
+      ?~  index.cause  i.private-keys
+      =/  key-at-index=meta  (~(by-index get:v %prv) u.index.cause)
+      ?>  ?=(%coil -.key-at-index)
+      key-at-index
+    =/  sender-key=schnorr-seckey:transact
+      (from-atom:schnorr-seckey:transact p.key.sender)
+    =/  signed-inputs=inputs:transact
+      %-  ~(run z-by:zo p.dat.cause)
+      |=  =input:transact
+      %-  (debug "signing input: {<input>}")
+      =.  spend.input
+        %+  sign:spend:transact
+          spend.input
+        sender-key
+      input
+    =/  signed-draft=draft
+      %=  dat.cause
+        p  signed-inputs
+      ==
+    =/  draft-jam  (jam signed-draft)
+    %-  (debug "saving input draft to {<file-path.cause>}")
+    =/  =effect  [%file %write file-path.cause draft-jam]
+    :-  ~[effect [%exit 0]]
+    state
+  ::
   ::
   ++  do-advanced-spend-seed
     |=  cause=advanced-spend-seed

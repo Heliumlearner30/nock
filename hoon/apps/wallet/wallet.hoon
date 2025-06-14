@@ -173,6 +173,13 @@
           gifts=(list coins:transact)                  ::  number of coins to spend
           fee=coins:transact                           ::  fee
       ==
+      $:  %aeroe-spend
+          names=(list [first=@t last=@t])              ::  base58-encoded name hashes
+          recipients=(list [m=@ pks=(list @t)])        ::  base58-encoded locks
+          gifts=(list coins:transact)                  ::  number of coins to spend
+          fee=coins:transact                           ::  fee
+          file-path=@t                                 ::  location to write the draft
+      ==
       [%sign-tx dat=draft index=(unit @ud) entropy=@]
       [%list-pubkeys ~]
       [%list-notes ~]
@@ -1137,6 +1144,7 @@
       %list-notes            (do-list-notes cause)
       %list-notes-by-pubkey  (do-list-notes-by-pubkey cause)
       %simple-spend          (do-simple-spend cause)
+      %aeroe-spend           (do-aeroe-spend cause)
       %update-balance        (do-update-balance cause)
       %update-block          (do-update-block cause)
       %import-keys           (do-import-keys cause)
@@ -1849,6 +1857,112 @@
       "./drafts/{(trip name.draft)}.draft"
     %-  (debug "saving draft to {<path>}")
     =/  =effect  [%file %write path draft-jam]
+    :-  ~[effect [%exit 0]]
+    state
+  ::
+  ::  this is just simple-spend but with an addition of passing in the draft path
+  ++  do-aeroe-spend
+    |=  =cause
+    ?>  ?=(%aeroe-spend -.cause)
+    %-  (debug "aeroe-spend: {<names.cause>}")
+    ::  for now, each input corresponds to a single name and recipient. all
+    ::  assets associated with the name are transferred to the recipient.
+    ::
+    ::  thus there is one recipient per name, and one seed per recipient.
+    ::
+    =/  names=(list nname:transact)
+      %+  turn  names.cause
+      |=  [first=@t last=@t]
+      (from-b58:nname:transact [first last])
+    =/  recipients=(list lock:transact)
+      %+  turn  recipients.cause
+      |=  [m=@ pks=(list @t)]
+      %+  m-of-n:new:lock:transact  m
+      %-  ~(gas z-in:zo *(z-set:zo schnorr-pubkey:transact))
+      %+  turn  pks
+      |=  pk=@t
+      (from-b58:schnorr-pubkey:transact pk)
+    ::
+    =/  gifts=(list coins:transact)  gifts.cause
+    ::
+    ?.  ?&  =((lent names) (lent recipients))
+            =((lent names) (lent gifts))
+        ==
+      ~|("different number of names/recipients/gifts" !!)
+    =|  ledger=(list [name=nname:transact recipient=lock:transact gifts=coins:transact])
+    =.  ledger
+      |-
+      ?~  names  ledger
+      ::  since we assert they are equal in length above, this is just to get
+      ::  the i face
+      ?~  gifts  ledger
+      ?~  recipients  ledger
+      %=  $
+        ledger      [[i.names i.recipients i.gifts] ledger]
+        names       t.names
+        gifts       t.gifts
+        recipients  t.recipients
+      ==
+    ::
+    ::  the fee is subtracted from the first note that permits doing so without overspending
+    =/  fee=coins:transact  fee.cause
+    ::  use the first private key to construct the subsequent inputs
+    =/  sender=coil
+      =/  private-keys=(list coil)  ~(coils get:v %prv)
+      ?~  private-keys
+        ~|("No private keys available for signing" !!)
+      (head private-keys)
+    =/  sender-key=schnorr-seckey:transact
+      (from-atom:schnorr-seckey:transact p.key.sender)
+    ::  for each name, create an input from the corresponding note in sender's
+    ::  balance at the current block. the fee will be subtracted entirely from
+    ::  the first note that has sufficient assets for both the fee and the gift.
+    ::  the refund is sent to receive-address.state
+    =/  [ins=(list input:transact) spent-fee=?]
+      %^  spin  ledger  `?`%.n
+      |=  $:  $:  name=nname:transact
+                  recipient=lock:transact
+                  gift=coins:transact
+              ==
+            spent-fee=?
+          ==
+      =/  note=nnote:transact  (get-note:v name)
+      ?:  (gth gift assets.note)
+        ~|  "gift {<gift>} larger than assets {<assets.note>} for recipient {<recipient>}"
+        !!
+      ?:  ?&  !spent-fee
+              (lte (add gift fee) assets.note)
+          ==
+        ::  we can subtract the fee from this note
+        :_  %.y
+        %-  with-choice:with-refund:simple-from-note:new:input:transact
+       [recipient gift fee note sender-key assert-receive-address:v]
+      ::  we cannot subtract the fee from this note, or we already have from a previous one
+      :_  %.n
+      %-  with-choice:with-refund:simple-from-note:new:input:transact
+      [recipient gift 0 note sender-key assert-receive-address:v]
+    ::
+    ?.  spent-fee
+      ~|("no note suitable to subtract fee from, aborting operation" !!)
+    =/  ins-draft=inputs:transact  (multi:new:inputs:transact ins)
+    ?:  ?=(~ last-block.state)
+      ~|("last-block unknown!" !!)
+    ::  name is the b58-encoded name of the first input
+    =/  draft-name=@t
+      %-  head
+      %+  turn  ~(tap z-by:zo (names:inputs:transact ins-draft))
+      |=  =nname:transact
+      =<  last
+      (to-b58:nname:transact nname)
+    ::  jam inputs and save as draft
+    =/  =draft
+      %*  .  *draft
+        p  ins-draft
+        name  draft-name
+      ==
+    =/  draft-jam  (jam draft)
+    %-  (debug "saving draft to {<file-path.cause>}")
+    =/  =effect  [%file %write file-path.cause draft-jam]
     :-  ~[effect [%exit 0]]
     state
   ::

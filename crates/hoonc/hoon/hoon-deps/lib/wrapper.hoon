@@ -67,7 +67,6 @@
     ?~  pax
       ~>  %slog.[0 leaf+"wrapper +poke: arg is not a path"]
       ~
-    ~&  u.pax
     (peek:inner-fort u.pax)
   ::
   ++  wish

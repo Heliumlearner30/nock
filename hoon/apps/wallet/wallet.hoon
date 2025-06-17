@@ -1044,16 +1044,25 @@
 ::
 ++  peek
   |=  =path
+  %-  (debug "{<path>}")
   ^-  (unit (unit *))
   ?+    path  ~
     ::
       [%state ~]
     ``state
     ::
-      [%balance ~]
+      [%balance @ ~]
+    =/  pk=@t  (slav %t i.t.path)
+    ~&  pk+pk
+    =/  target-pubkey=schnorr-pubkey:transact
+      (from-b58:schnorr-pubkey:transact pk)
+    =/  matching-notes=(list nnote:transact)
+      %+  skim  ~(val z-by:zo balance.state)
+      |=  =nnote:transact
+      (~(has z-in:zo pubkeys.lock.nnote) target-pubkey)
     =/  list-coins=(list coins:transact)
       %+  turn
-        ~(val z-by:zo balance.state)
+        matching-notes
       |=  =nnote:transact
       assets.nnote
     ``(roll list-coins add)
@@ -1090,11 +1099,20 @@
       (to-b58:schnorr-pubkey:transact pubkey)
     ``(crip (join ' ' base58-keys))
     ::
-      [%notes ~]
+      [%notes @ ~]
     %-  (debug "peek notes")
+    =/  pk=@t  (slav %t i.t.path)
+    ~&  pk+pk
+    =/  target-pubkey=schnorr-pubkey:transact
+      (from-b58:schnorr-pubkey:transact pk)
+    =/  matching-notes=(list =nnote:transact)
+      %+  skim  ~(val z-by:zo balance.state)
+      |=  =nnote:transact
+      (~(has z-in:zo pubkeys.lock.nnote) target-pubkey)
+
     =/  note-objects=(list tape)
       %+  turn
-        ~(val z-by:zo balance.state)
+        matching-notes
       ::  construct note
       |=  note=nnote:transact
       ^-  tape

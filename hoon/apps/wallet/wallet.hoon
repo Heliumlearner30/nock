@@ -1044,18 +1044,16 @@
 ::
 ++  peek
   |=  =path
-  %-  (debug "{<path>}")
   ^-  (unit (unit *))
-  ?+    path  ~
+  =/  =(pole)  path
+  ?+    pole  ~
     ::
       [%state ~]
     ``state
     ::
-      [%balance @ ~]
-    =/  pk=@t  (slav %t i.t.path)
-    ~&  pk+pk
+      [%balance pk=@ ~]
     =/  target-pubkey=schnorr-pubkey:transact
-      (from-b58:schnorr-pubkey:transact pk)
+      (from-b58:schnorr-pubkey:transact pk.pole)
     =/  matching-notes=(list nnote:transact)
       %+  skim  ~(val z-by:zo balance.state)
       |=  =nnote:transact
@@ -1099,12 +1097,9 @@
       (to-b58:schnorr-pubkey:transact pubkey)
     ``(crip (join ' ' base58-keys))
     ::
-      [%notes @ ~]
-    %-  (debug "peek notes")
-    =/  pk=@t  (slav %t i.t.path)
-    ~&  pk+pk
+      [%notes pk=@ ~]
     =/  target-pubkey=schnorr-pubkey:transact
-      (from-b58:schnorr-pubkey:transact pk)
+      (from-b58:schnorr-pubkey:transact pk.pole)
     =/  matching-notes=(list =nnote:transact)
       %+  skim  ~(val z-by:zo balance.state)
       |=  =nnote:transact

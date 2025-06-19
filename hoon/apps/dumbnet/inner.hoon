@@ -1057,11 +1057,9 @@
         ?~  incoming-heaviest-block   !!
         =+  incoming-summary=(to-page-summary:page:t (to-page:local-page:t u.incoming-heaviest-block))
         ::  get present summary
-        ?~  heaviest-block.c.k
-          [~ ~]
-        =/  heaviest-block  (~(get z-by blocks.c.k) u.heaviest-block.c.k)
-        ?~  heaviest-block
-          [~ ~]
+        ?~  heaviest-block.c.k  !!
+        =/  heaviest-block      (~(get z-by blocks.c.k) u.heaviest-block.c.k)
+        ?~  heaviest-block      !!
         =+  summary=(to-page-summary:page:t (to-page:local-page:t u.heaviest-block))
         ?>  (gth height.incoming-summary height.summary)
         =.  c.k  p.command

@@ -1053,7 +1053,7 @@
         ?>  ?=([%ff-consensus *] command)
         ::  get incoming summary
         ?~  heaviest-block.p.command  !!
-        =/  incoming-heaviest-block   (~(get z-by blocks.p.command) heaviest-block.p.command)
+        =/  incoming-heaviest-block   (~(get z-by blocks.p.command) u.heaviest-block.p.command)
         ?~  incoming-heaviest-block   !!
         =+  incoming-summary=(to-page-summary:page:t (to-page:local-page:t u.incoming-heaviest-block))
         ::  get present summary

@@ -227,6 +227,9 @@
         [~ ~]
       =+  summary=(to-page-summary:page:t (to-page:local-page:t u.heaviest-block))
       ``height.summary
+        [%cstate ~]
+      ^-  (unit (unit *))
+      ``(jam c.k)
     ==
   ::
   ++  poke
@@ -869,6 +872,8 @@
           %btc-data
         do-btc-data
       ::
+          %ff-consensus
+        do-ff-consensus
       ::  !!! COMMANDS BELOW ARE ONLY FOR TESTING. NEVER CALL IF RUNNING MAINNET !!!
       ::
           %set-constants
@@ -1042,6 +1047,24 @@
         ^-  [(list effect:dk) kernel-state:dk]
         ?>  ?=([%btc-data *] command)
         =.  c.k  (add-btc-data:con p.command)
+        `k
+      ++  do-ff-consensus
+        ^-  [(list effect:dk) kernel-state:dk]
+        ?>  ?=([%ff-consensus *] command)
+        ::  get incoming summary
+        ?~  heaviest-block.p.command  !!
+        =/  incoming-heaviest-block   (~(get z-by blocks.p.command) heaviest-block.p.command)
+        ?~  incoming-heaviest-block   !!
+        =+  incoming-summary=(to-page-summary:page:t (to-page:local-page:t u.incoming-heaviest-block))
+        ::  get present summary
+        ?~  heaviest-block.c.k
+          [~ ~]
+        =/  heaviest-block  (~(get z-by blocks.c.k) u.heaviest-block.c.k)
+        ?~  heaviest-block
+          [~ ~]
+        =+  summary=(to-page-summary:page:t (to-page:local-page:t u.heaviest-block))
+        ?>  (gth height.incoming-summary height.summary)
+        =.  c.k  p.command
         `k
       --::+handle-command
     ::

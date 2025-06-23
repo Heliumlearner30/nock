@@ -230,6 +230,10 @@
         [%cstate ~]
       ^-  (unit (unit *))
       ``(jam c.k)
+        [%commit ~]
+      =/  commit=block-commitment:t  (block-commitment:page:t candidate-block.m.k)
+      =+  jammed=(jam commit)
+      ``jammed
     ==
   ::
   ++  poke

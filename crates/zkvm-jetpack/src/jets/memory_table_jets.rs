@@ -127,9 +127,10 @@ pub fn memory_extend_jet(context: &mut Context, subject: Noun) -> Result<Noun, J
         write_pelt(&mut res_mary, &inv, &row_idx, &Col(ext_idx(INV_IDX)));
     });
 
-    // padded columns are all 0 except for %inv which is -1
+    // padded columns are all 0 except for %inv which is -1, and %input
     let neg_one: Felt = fsub_(&Felt::zero(), &Felt::one());
     for i in build_and_bft.len()..(table.len as usize) {
+        write_pelt(&mut res_mary, &subj_pc1, &Row(i), &Col(ext_idx(INPUT_IDX)));
         write_pelt(&mut res_mary, &neg_one, &Row(i), &Col(ext_idx(INV_IDX)));
     }
 

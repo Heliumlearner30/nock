@@ -8,28 +8,30 @@
 =>
   |%
   +$  kernel-state  [%state version=%1]
-  :: +$  effect  [%command %pow prf=proof:sp dig=tip5-hash-atom block-commitment=noun-digest:tip5 nonce=noun-digest:tip5]
+  ::
   +$  pool-id    @tas
   +$  user-id-1  @tas
   +$  user-id-2  @tas
   ::
-  +$  effect  
-    $:
-      %res
-      eny=@
-      commit=noun-digest:tip5
-      prf=proof:sp
-      dig=tip5-hash-atom
-    ==
-  ::
   +$  cause
     $:
+      make-proof=?
       version=?(%0 %1)
       commit=@
       =pool-id
       =user-id-1
       =user-id-2
     ==
+  ::
+  +$  effect  
+    $:
+      %res
+      eny=@
+      commit=@
+      prf=proof:sp
+      dig=tip5-hash-atom
+    ==
+  ::
   --
 |%
 ++  moat  (keep kernel-state) :: no state
@@ -74,10 +76,13 @@
     ~&  prover-input+input
     ::
     =/  [prf=proof:sp dig=tip5-hash-atom] 
-      (prove-block-inner:mine input)
-    =/  eff=effect  [%res eny commit prf dig]
-    ~&  effect+eff
+      ?:  make-proof.cause
+        (prove-block-inner:mine input)
+      [*proof:sp *tip5-hash-atom]
+    ~&  'proof done'
+    ~&  digest+dig
+    ~&  proof+proof
     :_  k
-    ~[eff]
+    ~[[%res eny commit.cause prf dig]]
   --
 --

@@ -72,13 +72,14 @@
         %1  [%1 commit nonce pow-len]
       ==
     ::
-    ~&  'making proof'
+    ~&  %generating-proof
     =/  [prf=proof:sp dig=tip5-hash-atom] 
       ?:  make-proof.cause
         (prove-block-inner:mine input)
       [*proof:sp *tip5-hash-atom]
-    ~&  'proof done'
+    ~&  %jamming-proof
     =/  prf-jam=@  (jam prf)
+    ~&  proof-done+dig
     :_  k
     ~[[%res eny commit.cause prf-jam dig]]
   --

@@ -38,19 +38,45 @@
     ~&  [%nockchain-state-version -.arg]
     ::  cut
     |^
-    ~>  %bout  (check-checkpoints (state-n-to-1 arg))
+    ~>  %bout  (check-checkpoints (state-n-to-3 arg))
     ::  this arm should be renamed each state upgrade to state-n-to-[latest] and extended to loop through all upgrades
-    ++  state-n-to-1
+    ++  state-n-to-3
       |=  arg=load-kernel-state:dk
       ^-  kernel-state:dk
-      ?.  ?=(%2 -.arg)
+      ?.  ?=(%3 -.arg)
         ~>  %slog.[0 leaf+"state upgrade required"]
         ?-  -.arg
             ::
           %0  $(arg (state-0-to-1 arg))
           %1  $(arg (state-1-to-2 arg))
+          %2  $(arg (state-2-to-3 arg))
         ==
       arg
+    ::  upgrade kernel-state-2 to kernel-state-3
+    ++  state-2-to-3
+      |=  arg=kernel-state-2:dk
+      ^-  kernel-state-3:dk
+      ~>  %slog.[0 leaf+"state version 2 to version 3"]
+      =/  raw-txs=(z-map tx-id:t raw-tx:t)
+        %-  ~(rep z-by txs.c.arg)
+        |=  [[block-id:t m=(z-map tx-id:t tx:t)] n=(z-map tx-id:t raw-tx:t)]
+        %-  ~(uni z-by n)
+        %-  ~(run z-by m)
+        |=  =tx:t
+        ^-  raw-tx:t  -.tx
+      =/  c=consensus-state:dk
+        :*  balance.c.arg
+            txs.c.arg
+            raw-txs
+            blocks.c.arg
+            heaviest-block.c.arg
+            min-timestamps.c.arg
+            epoch-start.c.arg
+            targets.c.arg
+            btc-data.c.arg
+            genesis-seal.c.arg
+        ==
+      [%3 c p.arg a.arg m.arg d.arg constants.arg]
     ::  upgrade kernel-state-1 to kernel-state-2
     ++  state-1-to-2
       |=  arg=kernel-state-1:dk
@@ -86,7 +112,7 @@
       ~&  check-checkpoints-mainnet+mainnet
       ?~  mainnet
         arg
-      ?:  u.mainnet
+      ?.  u.mainnet
         arg
       =/  checkpoints  ~(tap z-by checkpointed-digests:con)
       |-  ^-  kernel-state:dk
@@ -129,8 +155,7 @@
     ::
         [%raw-transactions ~]
       ^-  (unit (unit (z-map tx-id:t raw-tx:t)))
-      ~&  raw-txs.p.k
-      ``raw-txs.p.k
+      ``(~(uni z-by raw-txs.p.k) raw-txs.c.k)
     ::
     ::  For %block, %transaction, %raw-transaction, and %balance scries, the ID is
     ::  passed as a base58 encoded string in the scry path.
@@ -151,6 +176,7 @@
     ::
         [%transaction tid=@ ~]
       ::  scry for a tx that has been included in a validated block
+      ::  TODO: fixme this is wrong, it returns a map of txs from a *block* id
       ^-  (unit (unit (z-map tx-id:t tx:t)))
       :-  ~
       %-  ~(get z-by txs.c.k)
@@ -160,8 +186,12 @@
       ::  scry for a raw-tx
       ^-  (unit (unit raw-tx:t))
       :-  ~
-      %-  ~(get z-by raw-txs.p.k)
-      (from-b58:hash:t tid.pole)
+      =/  hash  (from-b58:hash:t tid.pole)
+      =/  raw-from-pending
+        (~(get z-by raw-txs.p.k) hash)
+      ?~  raw-from-pending
+        (~(get z-by raw-txs.c.k) hash)
+      raw-from-pending
     ::
         [%heavy ~]
       ^-  (unit (unit (unit block-id:t)))
@@ -227,6 +257,13 @@
         [~ ~]
       =+  summary=(to-page-summary:page:t (to-page:local-page:t u.heaviest-block))
       ``height.summary
+        [%cstate ~]
+      ^-  (unit (unit *))
+      ``(jam c.k)
+        [%commit ~]
+      =/  commit=block-commitment:t  (block-commitment:page:t candidate-block.m.k)
+      =+  jammed=(jam commit)
+      ``jammed
     ==
   ::
   ++  poke
@@ -614,7 +651,7 @@
       ::  check if any inputs are absent in heaviest balance
       ?.  (inputs-in-heaviest-balance:con raw)
         ::  input(s) in tx not in balance, discard tx
-        ~>  %slog.[3 leaf+"inputs-in-heaviest-balance"]
+        ~>  %slog.[3 leaf+"inputs-not-in-heaviest-balance"]
         `k
       ::  all inputs in balance
       ::
@@ -869,6 +906,8 @@
           %btc-data
         do-btc-data
       ::
+          %ff-consensus
+        do-ff-consensus
       ::  !!! COMMANDS BELOW ARE ONLY FOR TESTING. NEVER CALL IF RUNNING MAINNET !!!
       ::
           %set-constants
@@ -1042,6 +1081,22 @@
         ^-  [(list effect:dk) kernel-state:dk]
         ?>  ?=([%btc-data *] command)
         =.  c.k  (add-btc-data:con p.command)
+        `k
+      ++  do-ff-consensus
+        ^-  [(list effect:dk) kernel-state:dk]
+        ?>  ?=([%ff-consensus *] command)
+        ::  get incoming summary
+        ?~  heaviest-block.p.command  !!
+        =/  incoming-heaviest-block   (~(get z-by blocks.p.command) u.heaviest-block.p.command)
+        ?~  incoming-heaviest-block   !!
+        =+  incoming-summary=(to-page-summary:page:t (to-page:local-page:t u.incoming-heaviest-block))
+        ::  get present summary
+        ?~  heaviest-block.c.k  !!
+        =/  heaviest-block      (~(get z-by blocks.c.k) u.heaviest-block.c.k)
+        ?~  heaviest-block      !!
+        =+  summary=(to-page-summary:page:t (to-page:local-page:t u.heaviest-block))
+        ?>  (gth height.incoming-summary height.summary)
+        =.  c.k  p.command
         `k
       --::+handle-command
     ::

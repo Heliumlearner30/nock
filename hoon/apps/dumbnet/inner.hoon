@@ -129,7 +129,6 @@
     ::
         [%raw-transactions ~]
       ^-  (unit (unit (z-map tx-id:t raw-tx:t)))
-      ~&  raw-txs.p.k
       ``raw-txs.p.k
     ::
     ::  For %block, %transaction, %raw-transaction, and %balance scries, the ID is

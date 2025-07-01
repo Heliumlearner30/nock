@@ -246,6 +246,7 @@ pub fn init_bpoly(list_belt: HoonList, res_poly: &mut [Belt]) -> std::result::Re
         let Ok(belt) = belt_noun.as_belt() else {
             return jet_err();
         };
+        res_poly[i] = belt;
     }
 
     let res_cell = finalize_poly(&mut context.stack, Some(res_poly.len()), res);

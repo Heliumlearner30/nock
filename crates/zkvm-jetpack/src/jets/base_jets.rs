@@ -126,7 +126,9 @@ pub fn levy_based(a_noun: Noun) -> bool {
         }
         let cell = list.as_cell().expect("cell not found");
         let based_res = based(cell.head());
-        if !based_res { return false; }
+        if !based_res {
+            return false;
+        }
 
         list = cell.tail();
     }
@@ -134,7 +136,11 @@ pub fn levy_based(a_noun: Noun) -> bool {
 
 pub fn based_jet(_context: &mut Context, subject: Noun) -> Result {
     let sam = slot(subject, 6)?;
-    if based(sam) { Ok(YES) } else { Ok(NO) }
+    if based(sam) {
+        Ok(YES)
+    } else {
+        Ok(NO)
+    }
 }
 
 fn based(a_noun: Noun) -> bool {

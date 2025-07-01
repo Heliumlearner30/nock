@@ -233,11 +233,8 @@ pub fn init_bpoly_jet(context: &mut Context, subject: Noun) -> Result {
 
     let list_belt = HoonList::try_from(poly)?.into_iter();
     let count = list_belt.count();
-<<<<<<< HEAD
     let (res, res_poly): (IndirectAtom, &mut [Belt]) =
         new_handle_mut_slice(&mut context.stack, Some(count as usize));
-=======
-    let (res, res_poly): (IndirectAtom, &mut [Belt]) = new_handle_mut_slice(stack, Some(count));
     init_bpoly(list_belt, res_poly)?;
 
     let res_cell = finalize_poly(stack, Some(res_poly.len()), res);
@@ -245,22 +242,13 @@ pub fn init_bpoly_jet(context: &mut Context, subject: Noun) -> Result {
 }
 
 pub fn init_bpoly(list_belt: HoonList, res_poly: &mut [Belt]) -> std::result::Result<(), JetErr> {
->>>>>>> 1d2cbcc (implemented fixes for comments by philipquirk)
     for (i, belt_noun) in list_belt.enumerate() {
         let Ok(belt) = belt_noun.as_belt() else {
             return jet_err();
         };
-<<<<<<< HEAD
-        res_poly[i] = belt;
     }
 
     let res_cell = finalize_poly(&mut context.stack, Some(res_poly.len()), res);
 
     Ok(res_cell)
-=======
-
-        res_poly[i] = belt;
-    }
-    Ok(())
->>>>>>> 1d2cbcc (implemented fixes for comments by philipquirk)
 }

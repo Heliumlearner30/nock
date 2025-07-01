@@ -118,10 +118,11 @@ pub mod util {
     use std::result;
 
     use crate::interpreter::Context;
-    use crate::jets::util::{slam, BAIL_EXIT};
+    use crate::jets::util::BAIL_EXIT;
     use crate::jets::{JetErr, Result};
     use crate::mem::NockStack;
     use crate::noun::{Cell, Noun, D, NO, T, YES};
+    use crate::site::{site_slam, Site};
 
     /// Reverse order of list
     pub fn flop(stack: &mut NockStack, noun: Noun) -> Result {

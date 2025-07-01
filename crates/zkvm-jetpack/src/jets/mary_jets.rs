@@ -2,15 +2,12 @@ use nockvm::interpreter::Context;
 use nockvm::jets::bits::util::lsh;
 use nockvm::jets::list::util::{lent, reap};
 use nockvm::jets::math::util::add;
-use nockvm::jets::util::{bite_to_word, bite_to_word, chop, slot};
+use nockvm::jets::util::{bite_to_word, chop, slot};
 use nockvm::jets::JetErr;
 use nockvm::mem::NockStack;
-use nockvm::noun::{
-    Atom, IndirectAtom, Noun, D, NO, T, YES,
-};
+use nockvm::noun::{Atom, IndirectAtom, Noun, D, NO, T, YES};
 use tracing::{debug, error};
 
-use crate::form::Belt;
 use crate::form::mary::*;
 use crate::form::math::mary::*;
 use crate::form::Belt;
@@ -130,12 +127,8 @@ pub fn fet_jet(context: &mut Context, subject: Noun) -> Result<Noun, JetErr> {
     let v = rip_correct(stack, 6, 1, a)?;
 
     let lent_v = lent(v)? as u64;
-<<<<<<< HEAD
 
     if ((lent_v == 1) && (step == 1)) || (lent_v == (step + 1)) && levy_based(v) {
-=======
-    if (((lent_v==1) && (step == 1)) || (lent_v==(step+1))) && levy_based(v) {
->>>>>>> 1d2cbcc (implemented fixes for comments by philipquirk)
         Ok(YES)
     } else {
         Ok(NO)

@@ -96,13 +96,13 @@ Make sure your current directory is nockchain.
 To run a Nockchain node without mining.
 
 ```
-sh ./scripts/run_nockchain_node.sh
+./scripts/run_nockchain_node.sh
 ```
 
 To run a Nockchain node and mine to a pubkey:
 
 ```
-sh ./scripts/run_nockchain_miner.sh
+./scripts/run_nockchain_miner.sh
 ```
 
 For launch, make sure you run in a fresh working directory that does not include a .data.nockchain file from testing.

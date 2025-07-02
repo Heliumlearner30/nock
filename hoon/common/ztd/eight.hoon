@@ -410,6 +410,222 @@
     (bpscal alpha comp-coeff)
   --
 ::
+++  compute-composition-poly-batched
+  ~/  %compute-composition-poly-batched-hoon
+  |=  $:  omicrons=bpoly
+          heights=(list @)
+          tworow-trace-polys=(list bpoly)
+          constraint-map=(map @ constraints)
+          constraint-counts=(map @ constraint-counts)
+          composition-chals=(map @ bpoly)
+          chal-map=(map @ belt)
+          dyn-map=(map @ bpoly)
+          is-extra=?
+      ==
+  ^-  bpoly
+  (do-compute-composition-poly-batched +<)
+::
+++  do-compute-composition-poly-batched
+  ~/  %compute-composition-poly-batched
+  |=  $:  omicrons=bpoly
+          heights=(list @)
+          tworow-trace-polys=(list bpoly)
+          constraint-map=(map @ constraints)
+          constraint-counts=(map @ constraint-counts)
+          composition-chals=(map @ bpoly)
+          chal-map=(map @ belt)
+          dyn-map=(map @ bpoly)
+          is-extra=?
+      ==
+  ^-  bpoly
+  =/  max-height=@
+    %-  bex  %-  xeb  %-  dec
+    (roll heights max)
+  =/  dp  (degree-processing heights constraint-map is-extra)
+  |^
+  =/  boundary-zerofier  (init-bpoly ~[(bneg 1) 1])          ::  f(X)=X-1
+  ::
+  %+  roll  (range len.omicrons)
+  |=  [i=@ acc=_zero-bpoly]
+  =/  height=@  (snag i heights)
+  =/  omicron  (~(snag bop omicrons) i)
+  =/  last-row  (init-bpoly ~[(bneg (binv omicron)) 1])      ::  f(X)=X-g^{-1}
+  =/  chals  (~(got by composition-chals) i)
+  =/  trace  (snag i tworow-trace-polys)
+  =/  constraints  (~(got by constraint-w-deg-map.dp) i)
+  =/  counts  (~(got by constraint-counts) i)
+  =/  dyns  (~(got by dyn-map) i)
+  ::
+  =/  row-zerofier                                           ::  f(X) = (X^N-1)
+    (bpsub (bppow id-bpoly height) one-bpoly)
+  ::
+  ::  Instead of dividing each constraint result individually, accumulate all
+  ::  results for each zerofier type, then divide once per zerofier
+  ::
+  =/  boundary-acc
+    %-  process-composition-constraints-batched
+    :*  boundary.constraints
+        trace
+        (~(scag bop chals) (mul 2 boundary.counts))
+        dyns
+    ==
+  ::
+  =/  row-acc
+    %-  process-composition-constraints-batched
+    :*  row.constraints
+        trace
+      ::
+        %+  ~(swag bop chals)
+          (mul 2 boundary.counts)
+        (mul 2 row.counts)
+      ::
+        dyns
+    ==
+  ::
+  =/  transition-acc
+    ::  note: the transition zerofier = row-zerofier/last-row
+    ::  here, we are computing composition-constraints/transition-zerofier
+    %+  bpmul  last-row
+    %-  process-composition-constraints-batched
+    :*  transition.constraints
+        trace
+      ::
+        %+  ~(swag bop chals)
+          (mul 2 (add boundary.counts row.counts))
+        (mul 2 transition.counts)
+      ::
+        dyns
+    ==
+  ::
+  =/  terminal-acc
+    %-  process-composition-constraints-batched
+    :*  terminal.constraints
+        trace
+      ::
+        %+  ~(swag bop chals)
+          (mul 2 :(add boundary.counts row.counts transition.counts))
+        (mul 2 terminal.counts)
+      ::
+        dyns
+    ==
+  ::
+  =/  extra-acc
+    ?.  is-extra  zero-bpoly
+    %-  process-composition-constraints-batched
+    :*  extra.constraints
+        trace
+      ::
+        %-  ~(slag bop chals)
+        %+  mul  2
+        ;:  add
+          boundary.counts
+          row.counts
+          transition.counts
+          terminal.counts
+        ==
+      ::
+        dyns
+    ==
+  ::
+  =/  row-zerofier-group  (bpadd (bpadd row-acc transition-acc) extra-acc)
+  ::
+  ;:  bpadd
+    acc
+    (bpdiv boundary-acc boundary-zerofier)
+    (bpdiv row-zerofier-group row-zerofier)
+    (bpdiv terminal-acc last-row)
+  ==
+  ::
+  ++  process-composition-constraints-batched
+    |=  $:  constraints=(list [(list @) mp-ultra])
+            trace=bpoly
+            weights=bpoly
+            dyns=bpoly
+        ==
+    ^-  bpoly
+    ?~  constraints  zero-bpoly
+    ::
+    ::  Step 1: Evaluate all constraints and collect results with global indices
+    ::  We need to track the global index for weight access
+    =/  evaluated-constraints
+      =/  loop
+        |=  [remaining=(list [(list @) mp-ultra]) idx=@ acc=(list [deg=@ idx=@ coeffs=(list bpoly)])]
+        ^-  (list [deg=@ idx=@ coeffs=(list bpoly)])
+        ?~  remaining
+          acc
+        =/  [degs=(list @) mp=mp-ultra]  i.remaining
+        =/  deg  (roll degs max)
+        =/  coeffs  (mp-substitute-ultra mp trace max-height chal-map dyns)
+        %=  $
+          remaining  t.remaining
+          acc        [[deg idx coeffs] acc]
+          idx        (add idx (lent coeffs))
+        ==
+      (loop constraints 0 ~)
+    ::
+    ::  Step 2: Collect all coefficients for batch IFFT processing
+    ::  We need to track metadata to map results back
+    =/  all-coeffs-with-metadata
+      =|  acc=(list [deg=@ global-idx=@ coeff-idx=@ poly=bpoly])
+      %+  roll  evaluated-constraints
+      |=  [[deg=@ idx=@ coeffs=(list bpoly)] acc=_acc]
+      %+  weld  acc
+      %+  turn  (zip-up (range (lent coeffs)) coeffs)
+      |=  [coeff-idx=@ comp=bpoly]
+      [deg idx coeff-idx comp]
+    ::
+    ::  Step 3: Group coefficients by size for batch IFFT (bucket sort)
+    =/  size-groups
+      =/  combined
+        ^-  (map @ (list [deg=@ global-idx=@ coeff-idx=@ poly=bpoly]))
+        %+  roll  all-coeffs-with-metadata
+        |=  $:  [deg=@ global-idx=@ coeff-idx=@ poly=bpoly]
+                acc=(map @ (list [deg=@ global-idx=@ coeff-idx=@ poly=bpoly]))
+            ==
+        =/  size  len.poly
+        =/  existing  (~(gut by acc) size ~)
+        (~(put by acc) size [[deg global-idx coeff-idx poly] existing])
+      ::~&  :-  %batch-size-distribution
+      ::    %+  turn  ~(tap by combined)
+      ::    |=  [size=@ group=(list [deg=@ global-idx=@ coeff-idx=@ poly=bpoly])]
+      ::    [size count=(lent group)]
+      combined
+      ::  Step 4: Compute IFFT results map
+      =/  ifft-results
+        %-  malt
+        %-  zing
+        %+  turn  ~(tap by size-groups)
+        |=  [size=@ group=(list [deg=@ global-idx=@ coeff-idx=@ poly=bpoly])]
+        ^-  (list [* bpoly])
+        =/  is-pow2  =((bex (xeb (dec size))) size)
+        ?:  ?&(is-pow2 (gth size 1) (gth (lent group) 1))
+          :: Batch route
+          =/  meta-poly-pairs=(list [meta=* poly=bpoly])
+            %+  turn  group
+            |=  [deg=@ global-idx=@ coeff-idx=@ poly=bpoly]
+            [[deg global-idx coeff-idx] poly]
+          ~(tap by (batch-ifft-by-size meta-poly-pairs))
+        :: Fallback to individual IFFT
+        %+  turn  group
+        |=  [deg=@ global-idx=@ coeff-idx=@ poly=bpoly]
+        [[deg global-idx coeff-idx] (bp-ifft poly)]
+      ::  Apply weights and accumulate results
+      =/  result
+        %+  roll  all-coeffs-with-metadata
+        |=  [[deg=@ global-idx=@ coeff-idx=@ poly=bpoly] acc=_zero-bpoly]
+        =/  comp-coeff  (~(got by ifft-results) [deg global-idx coeff-idx])
+        =/  weight-idx  (add global-idx coeff-idx)
+        =/  alpha  (~(snag bop weights) (mul 2 weight-idx))
+        =/  beta   (~(snag bop weights) (add 1 (mul 2 weight-idx)))
+        %+  bpadd  acc
+        %+  bpadd
+          (bpscal beta comp-coeff)
+        %-  %~  weld  bop
+          ~+  (init-bpoly (reap (sub fri-deg-bound.dp deg) 0))
+        (bpscal alpha comp-coeff)
+      (bpcan result)
+--
+::
 :: compute the DEEP Composition Polynomial
 ++  compute-deep
   ~/  %compute-deep

@@ -552,6 +552,173 @@
   %+  bpscal  (binv len.p)
   (bp-ntt p (binv (ordered-root len.p)))
 ::
+::  +zip-bpoly-lists: zip two bpoly lists together
+++  zip-bpoly-lists
+  |=  [a=(list bpoly) b=(list bpoly)]
+  ^-  (list [bpoly bpoly])
+  ?~  a  ~
+  ?~  b  ~
+  [[i.a i.b] $(a t.a, b t.b)]
+::
+::  +get-odds: get odd-indexed elements
+++  get-odds
+  |=  p=bpoly
+  ^-  bpoly
+  ~+
+  =/  poly-list  ~(to-poly bop p)
+  =/  odds-list
+    |-  ^-  (list belt)
+    ?~  poly-list  ~
+    ?~  t.poly-list  ~
+    [i.t.poly-list $(poly-list ?~(t.t.poly-list ~ t.t.poly-list))]
+  (init-bpoly odds-list)
+::
+::  +get-evens: get even-indexed elements
+++  get-evens
+  |=  p=bpoly
+  ^-  bpoly
+  ~+
+  =/  poly-list  ~(to-poly bop p)
+  =/  evens-list
+    |-  ^-  (list belt)
+    ?~  poly-list  ~
+    [i.poly-list $(poly-list ?~(t.poly-list ~ ?~(t.t.poly-list ~ t.t.poly-list)))]
+  (init-bpoly evens-list)
+::
+::  +twiddle-factors: pre-compute twiddle factors for all recursion levels
+::++  twiddle-factors
+::  |=  size=@
+::  ^-  (map [level=@ idx=@] belt)
+::  ~+
+::  ::  We need twiddle factors for each level of recursion
+::  ::  Level 0: size n, root = inv-root
+::  ::  Level 1: size n/2, root = inv-root²
+::  ::  Level 2: size n/4, root = inv-root⁴
+::  ::  etc.
+::  =/  inv-root  (binv (ordered-root size))
+::  =/  factors=(map [level=@ idx=@] belt)  ~
+::  =/  current-root=belt  inv-root
+::  =/  current-size=@  size
+::  =/  level=@  0
+::  |-
+::  ?:  =(current-size 1)
+::    ~&  [%twiddle-precompute-done total-factors=~(wyt by factors)]
+::    factors
+::  ::  For this level, pre-compute root^0 through root^(size/2-1)
+::  =/  half-size  (div current-size 2)
+::  =/  level-factors
+::    %+  roll  (range half-size)
+::    |=  [i=@ acc=_factors]
+::    (~(put by acc) [level i] (bpow current-root i))
+::  %=  $
+::    factors       level-factors
+::    current-root  (bmul current-root current-root)  :: Square for next level
+::    current-size  half-size
+::    level         +(level)
+::  ==
+::
+::  +batch-bp-ntt: Cooley-Tukey recursive NTT
+++  batch-bp-ntt
+  ~/  %batch-bp-ntt
+  |=  [polys=(list bpoly) size=@ root=belt twiddles=(map [level=@ idx=@] belt) level=@]
+  ^-  (list bpoly)
+  ~+
+  ?:  =(size 1)
+    polys
+  =/  half  (div size 2)
+  =/  all-evens  (turn polys get-evens)
+  =/  all-odds   (turn polys get-odds)
+  =/  root-squared  (bmul root root)
+  =/  evens-results  
+    (batch-bp-ntt all-evens half root-squared twiddles +(level))
+  =/  odds-results   
+    (batch-bp-ntt all-odds half root-squared twiddles +(level))
+  =/  poly-pairs  (zip-bpoly-lists evens-results odds-results)
+  ::  Instead of "for each poly, for each element", do "for each element, for each poly"
+  =/  transposed-results
+    %+  turn  (range size)
+    |=  i=@
+    ::  NOTE: Using jetted bpow - faster than pre-computed map lookups
+    ::=/  twiddle  (~(got by twiddles) [level i])
+    =/  twiddle  (bpow root i)
+    =/  mod-idx  (mod i half)
+    ::  Apply butterfly operation to element i across all polynomial pairs
+    %+  turn  poly-pairs
+    |=  [even-vals=bpoly odd-vals=bpoly]
+    %+  badd  
+      (~(snag bop even-vals) mod-idx)
+    %+  bmul  
+      twiddle
+    (~(snag bop odd-vals) mod-idx)
+  ::  Regroup results by polynomial
+  =/  poly-count  (lent poly-pairs)
+  %+  turn  (range poly-count)
+  |=  poly-idx=@
+  %-  init-bpoly
+  %+  turn  transposed-results
+  |=  element-results=(list belt)
+  (snag poly-idx element-results)
+::
+::  +batch-bp-ifft: batch ifft for multiple polynomials of the same size
+++  batch-bp-ifft
+  |=  [polys=(list bpoly) size=@]
+  ^-  (list bpoly)
+  ~+
+  ?>  =(0 (dis size (dec size)))
+  ?>  (levy polys |=(p=bpoly =(len.p size)))
+  =/  inv-root  (binv (ordered-root size))
+  =/  scale-factor  (binv size)
+  ::  NOTE: Using jetted bpow - faster than pre-computed map lookups
+  ::=/  twiddles  (twiddle-factors size)
+  ::=/  ntt-results  (batch-bp-ntt polys size inv-root twiddles 0)
+  =/  ntt-results  (batch-bp-ntt polys size inv-root ~ 0)
+  %+  turn  ntt-results
+  |=  p=bpoly
+  (bpscal scale-factor p)
+::
+::  +group-by-size: group polynomials by their size
+++  group-by-size
+  |=  polys=(list [meta=* poly=bpoly])
+  ^-  (map @ (list [meta=* poly=bpoly]))
+  %+  roll  polys
+  |=  [[meta=* poly=bpoly] acc=(map @ (list [meta=* poly=bpoly]))]
+  =/  size  len.poly
+  =/  existing  (~(get by acc) size)
+  %+  ~(put by acc)  size
+  ?~  existing  
+    ~[[meta poly]]
+  (snoc u.existing [meta poly])
+::
+::  +batch-ifft-by-size: process a list of polynomials, batching by size
+++  batch-ifft-by-size
+  |=  polys=(list [meta=* poly=bpoly])
+  ^-  (map * bpoly)
+  ~+
+  =/  size-groups  (group-by-size polys)
+  =/  result-map=(map * bpoly)  ~
+  |-
+  ?~  size-groups
+    result-map
+  =/  [size=@ group=(list [meta=* poly=bpoly])]  n.size-groups
+  =/  poly-list=(list bpoly)  (turn group |=([m=* p=bpoly] p))
+  =/  meta-list=(list *)      (turn group |=([m=* p=bpoly] m))
+  =/  results=(list bpoly)
+    ?:  (lth (lent poly-list) 2)
+      (turn poly-list bp-ifft)
+    (batch-bp-ifft poly-list size)
+  =/  new-results
+    |-  ^-  (map * bpoly)
+    ?~  meta-list
+      ?>  =(~ results)
+      result-map
+    ?~  results  !!
+    %=  $
+      meta-list    t.meta-list
+      results      t.results  
+      result-map   (~(put by result-map) i.meta-list i.results)
+    ==
+  $(size-groups l.size-groups, result-map new-results)
+::
 ::  +fpmul-naive: high school polynomial multiplication
 ++  fpmul-naive
   ~/  %fpmul-naive

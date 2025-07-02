@@ -1,6 +1,8 @@
+use rayon::prelude::*;
 use std::vec;
 
 use crate::form::math::{bpow, FieldError};
+use crate::form::math::belt::montgomery_mul;
 use crate::form::poly::*;
 
 pub fn bpadd(a: &[Belt], b: &[Belt], res: &mut [Belt]) {
@@ -257,6 +259,79 @@ pub fn bp_ntt(bp: &[Belt], root: &Belt) -> Vec<Belt> {
         m *= 2;
     }
     x
+}
+
+#[inline(always)]
+pub fn batch_bp_ntt(polys: &[BPolySlice], root: &Belt) -> Vec<Vec<Belt>> {
+    if polys.is_empty() {
+        return vec![];
+    }
+
+    let size = polys[0].len();
+    let poly_count = polys.len();
+
+    // Base case
+    if size == 1 {
+        return polys.iter()
+            .map(|p| vec![p.0[0]])
+            .collect();
+    }
+
+    debug_assert!(size.is_power_of_two());
+
+    // Parallel split of polynomials into evens and odds
+    let (all_evens, all_odds): (Vec<_>, Vec<_>) = polys
+        .par_iter()
+        .map(|poly| split_even_odd(poly.0))
+        .unzip();
+
+    // Convert to BPolySlice for recursion
+    let evens_slices: Vec<BPolySlice> = all_evens.iter()
+        .map(|v| PolySlice(v.as_slice()))
+        .collect();
+    let odds_slices: Vec<BPolySlice> = all_odds.iter()
+        .map(|v| PolySlice(v.as_slice()))
+        .collect();
+
+    // Parallel recursive calls
+    let root_squared = *root * *root;
+    let (evens_results, odds_results) = rayon::join(
+        || batch_bp_ntt(&evens_slices, &root_squared),
+        || batch_bp_ntt(&odds_slices, &root_squared)
+    );
+
+    // Setup for butterfly operations
+    let half = size / 2;
+    let mut results = vec![vec![Belt(0); size]; poly_count];
+
+    // Parallel pre-computation of twiddle factors
+    let twiddles: Vec<_> = (0..size)
+        .into_par_iter()
+        .map(|i| bpow(root.0, i as u64))
+        .collect();
+
+    // Parallel butterfly operations - element-first approach
+    results.par_iter_mut().enumerate().for_each(|(poly_idx, result_poly)| {
+        for i in 0..size {
+            let twiddle = twiddles[i];
+            let mod_idx = i % half;
+            
+            let even_val = evens_results[poly_idx][mod_idx];
+            let odd_val = odds_results[poly_idx][mod_idx];
+            let twiddle_odd = Belt(montgomery_mul(odd_val.0, twiddle));
+            
+            result_poly[i] = even_val + twiddle_odd;
+        }
+    });
+
+    results
+}
+
+#[inline(always)]
+fn split_even_odd(poly: &[Belt]) -> (Vec<Belt>, Vec<Belt>) {
+    let evens: Vec<Belt> = poly.iter().step_by(2).copied().collect();
+    let odds: Vec<Belt> = poly.iter().skip(1).step_by(2).copied().collect();
+    (evens, odds)
 }
 
 #[inline(always)]

@@ -179,6 +179,56 @@ pub fn bp_ntt_jet(context: &mut Context, subject: Noun) -> Result {
     Ok(res_cell)
 }
 
+pub fn batch_bp_ntt_jet(context: &mut Context, subject: Noun) -> Result {
+    let sam = slot(subject, 6)?;
+    let polys = slot(sam, 2)?;
+    let size = slot(sam, 6)?;
+    let root = slot(sam, 14)?;
+    let _twiddles = slot(sam, 30)?;
+    let _level = slot(sam, 31)?;
+
+    let (Ok(root_atom), Ok(size_atom)) = (root.as_atom(), size.as_atom()) else {
+        return jet_err();
+    };
+    let root_belt = Belt(root_atom.as_u64()?);
+    let size_val = size_atom.as_u64()? as usize;
+
+    let poly_list = HoonList::try_from(polys)?;
+    let mut polys_vec = Vec::new();
+    
+    for poly_noun in poly_list.into_iter() {
+        let Ok(poly_slice) = BPolySlice::try_from(poly_noun) else {
+            return jet_err();
+        };
+        polys_vec.push(poly_slice);
+    }
+    
+    if polys_vec.is_empty() {
+        return Ok(D(0));
+    }
+
+    if !polys_vec.iter().all(|p| p.len() == size_val) {
+        return jet_err();
+    }
+
+    if !size_val.is_power_of_two() {
+        return jet_err();
+    }
+
+    let results = batch_bp_ntt(&polys_vec, &root_belt);
+
+    let mut res_list = D(0);
+    for result_poly in results.iter().rev() {
+        let (res_atom, res_poly): (IndirectAtom, &mut [Belt]) =
+            new_handle_mut_slice(&mut context.stack, Some(result_poly.len()));
+        res_poly.copy_from_slice(result_poly);
+        let poly_cell = finalize_poly(&mut context.stack, Some(res_poly.len()), res_atom);
+        res_list = T(&mut context.stack, &[poly_cell, res_list]);
+    }
+
+    Ok(res_list)
+}
+
 pub fn bp_fft_jet(context: &mut Context, subject: Noun) -> Result {
     let p = slot(subject, 6)?;
 

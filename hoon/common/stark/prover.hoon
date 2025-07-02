@@ -383,7 +383,7 @@
       [[i (~(swag bop extra-comp-weights) num (mul 2 num-extra-constraints))] acc]
     ::~&  %computing-extra-composition-poly
     =/  extra-composition-poly=bpoly
-      %-  compute-composition-poly
+      %-  compute-composition-poly-batched
       :*  omicrons-bpoly
           heights
           tworow-trace-polys-eval
@@ -458,7 +458,7 @@
     ::
     ::~&  %computing-composition-poly
     =/  composition-poly=bpoly
-      %-  compute-composition-poly
+      %-  compute-composition-poly-batched
       :*  omicrons-bpoly
           heights
           tworow-trace-polys-eval

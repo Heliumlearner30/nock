@@ -38,20 +38,34 @@
     ~&  [%nockchain-state-version -.arg]
     ::  cut
     |^
-    ~>  %bout  (check-checkpoints (state-n-to-3 arg))
+    ~>  %bout  (check-checkpoints (state-n-to-4 arg))
     ::  this arm should be renamed each state upgrade to state-n-to-[latest] and extended to loop through all upgrades
-    ++  state-n-to-3
+    ++  state-n-to-4
       |=  arg=load-kernel-state:dk
       ^-  kernel-state:dk
-      ?.  ?=(%3 -.arg)
+      ?.  ?=(%4 -.arg)
         ~>  %slog.[0 leaf+"state upgrade required"]
         ?-  -.arg
             ::
           %0  $(arg (state-0-to-1 arg))
           %1  $(arg (state-1-to-2 arg))
           %2  $(arg (state-2-to-3 arg))
+          %3  $(arg (state-3-to-4 arg))
         ==
       arg
+    ::  upgrade kernel state 3 to kernel state 4
+    ::  (reset pending state)
+    ++  state-3-to-4
+      |=  arg=kernel-state-3:dk
+      ^-  kernel-state-4:dk
+      ~>  %slog.[0 leaf+"state version 3 to version 4"]
+      =|  p=pending-state-4:dk :: empty pending state
+      :: reset candidate block
+      ?~  heaviest-block.c.arg
+        [%4 c.arg p.arg a.arg m.arg d.arg constants.arg]
+      =.  candidate-acc.m.arg  (new:tx-acc:t (~(get z-by balance.c.arg) u.heaviest-block.c.arg))
+      =.  tx-ids.candidate-block.m.arg  ~
+      [%4 c.arg p a.arg m.arg d.arg constants.arg]
     ::  upgrade kernel-state-2 to kernel-state-3
     ++  state-2-to-3
       |=  arg=kernel-state-2:dk
@@ -64,7 +78,7 @@
         %-  ~(run z-by m)
         |=  =tx:t
         ^-  raw-tx:t  -.tx
-      =/  c=consensus-state:dk
+      =/  c=consensus-state-3:dk
         :*  balance.c.arg
             txs.c.arg
             raw-txs
@@ -631,6 +645,7 @@
           =.  p.k
             %+  roll  tx-pending-blocks
             |=  [id=block-id:t pend=_p.k]
+            =.  p.k  pend
             (remove-pending-block:pen id)
           ::
           ~>  %slog.[3 leaf+"page-pending-raw-tx-invalid"]
@@ -683,6 +698,7 @@
       =^  eff  k
         %+  roll  ~(tap z-in work)
         |=  [bid=block-id:t effs=(list effect:dk) k=_k]
+        =.  ^k  k
         ::  process the block, skipping the steps that we know its already
         ::  done by the fact that it was in pending-blocks.p.k
         =^  new-effs  k
@@ -695,6 +711,7 @@
           ==
         ::  remove the block from pending blocks. at this point, its either
         ::  been discarded by the kernel or lives in the consensus state
+        =.  p.^k  p.k
         =.  p.k  (remove-pending-block:pen bid)
         ::  add the effects onto the list and return the updated kernel state
         [(weld new-effs effs) k]

@@ -267,6 +267,25 @@ pub fn batch_bp_ntt(polys: &[BPolySlice], root: &Belt) -> Vec<Vec<Belt>> {
     }
 
     let size = polys[0].len();
+    
+    // Pre-compute all twiddle factors once for the entire NTT
+    let all_twiddles = precompute_all_twiddles(*root, size);
+    
+    batch_bp_ntt_internal(polys, root, &all_twiddles, 0)
+}
+
+#[inline(always)]
+fn batch_bp_ntt_internal(
+    polys: &[BPolySlice], 
+    root: &Belt, 
+    all_twiddles: &[Vec<u64>], 
+    level: usize
+) -> Vec<Vec<Belt>> {
+    if polys.is_empty() {
+        return vec![];
+    }
+
+    let size = polys[0].len();
     let poly_count = polys.len();
 
     // Base case
@@ -298,22 +317,20 @@ pub fn batch_bp_ntt(polys: &[BPolySlice], root: &Belt) -> Vec<Vec<Belt>> {
 
     // Recursive calls
     let root_squared = *root * *root;
-    let evens_results = batch_bp_ntt(&evens_slices, &root_squared);
-    let odds_results = batch_bp_ntt(&odds_slices, &root_squared);
+    let evens_results = batch_bp_ntt_internal(&evens_slices, &root_squared, all_twiddles, level + 1);
+    let odds_results = batch_bp_ntt_internal(&odds_slices, &root_squared, all_twiddles, level + 1);
 
     // Setup for butterfly operations
     let half = size / 2;
     let mut results = vec![vec![Belt(0); size]; poly_count];
 
-    // Pre-compute twiddle factors
-    let twiddles: Vec<_> = (0..size)
-        .map(|i| bpow(root.0, i as u64))
-        .collect();
+    // Use pre-computed twiddle factors for this level
+    let level_twiddles = &all_twiddles[level];
 
     // Butterfly operations - element-first approach
     for (poly_idx, result_poly) in results.iter_mut().enumerate() {
         for i in 0..size {
-            let twiddle = twiddles[i];
+            let twiddle = level_twiddles[i];
             let mod_idx = i % half;
             
             let even_val = evens_results[poly_idx][mod_idx];
@@ -325,6 +342,31 @@ pub fn batch_bp_ntt(polys: &[BPolySlice], root: &Belt) -> Vec<Vec<Belt>> {
     }
 
     results
+}
+
+#[inline(always)]
+fn precompute_all_twiddles(root: Belt, max_size: usize) -> Vec<Vec<u64>> {
+    debug_assert!(max_size.is_power_of_two());
+    
+    let num_levels = (max_size as f64).log2() as usize;
+    let mut all_twiddles = Vec::with_capacity(num_levels);
+    
+    let mut current_root = root;
+    let mut current_size = max_size;
+    
+    for _level in 0..num_levels {
+        let mut level_twiddles = Vec::with_capacity(current_size);
+        for i in 0..current_size {
+            level_twiddles.push(bpow(current_root.0, i as u64));
+        }
+        all_twiddles.push(level_twiddles);
+        
+        // Next level uses squared root and half the size
+        current_root = current_root * current_root;
+        current_size /= 2;
+    }
+    
+    all_twiddles
 }
 
 #[inline(always)]

@@ -7228,7 +7228,6 @@ dependencies = [
  "nockvm_macros",
  "num-traits",
  "quickcheck",
- "rayon",
  "smallvec",
  "strum",
  "tracing",

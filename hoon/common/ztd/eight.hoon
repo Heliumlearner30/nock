@@ -536,6 +536,30 @@
     (bpdiv terminal-acc last-row)
   ==
   ::
+  ++  evaluate-constraints
+    ::~/  %evaluate-constraints
+    |=  $:  constraints=(list [(list @) mp-ultra])
+            trace=bpoly
+            max-height=@
+            chal-map=(map @ belt)
+            dyns=bpoly
+        ==
+    ^-  (list [deg=@ idx=@ coeffs=(list bpoly)])
+    =/  loop
+      |=  [remaining=(list [(list @) mp-ultra]) idx=@ acc=(list [deg=@ idx=@ coeffs=(list bpoly)])]
+      ^-  (list [deg=@ idx=@ coeffs=(list bpoly)])
+      ?~  remaining
+        acc
+      =/  [degs=(list @) mp=mp-ultra]  i.remaining
+      =/  deg  (roll degs max)
+      =/  coeffs  (mp-substitute-ultra mp trace max-height chal-map dyns)
+      %=  $
+        remaining  t.remaining
+        acc        [[deg idx coeffs] acc]
+        idx        (add idx (lent coeffs))
+      ==
+    (loop constraints 0 ~)
+  
   ++  process-composition-constraints-batched
     |=  $:  constraints=(list [(list @) mp-ultra])
             trace=bpoly
@@ -548,20 +572,7 @@
     ::  Step 1: Evaluate all constraints and collect results with global indices
     ::  We need to track the global index for weight access
     =/  evaluated-constraints
-      =/  loop
-        |=  [remaining=(list [(list @) mp-ultra]) idx=@ acc=(list [deg=@ idx=@ coeffs=(list bpoly)])]
-        ^-  (list [deg=@ idx=@ coeffs=(list bpoly)])
-        ?~  remaining
-          acc
-        =/  [degs=(list @) mp=mp-ultra]  i.remaining
-        =/  deg  (roll degs max)
-        =/  coeffs  (mp-substitute-ultra mp trace max-height chal-map dyns)
-        %=  $
-          remaining  t.remaining
-          acc        [[deg idx coeffs] acc]
-          idx        (add idx (lent coeffs))
-        ==
-      (loop constraints 0 ~)
+      (evaluate-constraints constraints trace max-height chal-map dyns)
     ::
     ::  Step 2: Collect all coefficients for batch IFFT processing
     ::  We need to track metadata to map results back
@@ -729,11 +740,17 @@
   ^-  bpoly
   %-  need
   =/  new-len  (mul height ntt-len)
-  %+  roll  (range len.array.polys)
-  |=  [i=@ acc=(unit bpoly)]
-  =/  p=bpoly  (~(snag-as-bpoly ave polys) i)
-  =/  fft=bpoly
-    (bp-fft (~(zero-extend bop p) (sub new-len len.p)))
+  =/  poly-list=(list bpoly)
+    %+  turn  (range len.array.polys)
+    |=  i=@
+    =/  p=bpoly  (~(snag-as-bpoly ave polys) i)
+    (~(zero-extend bop p) (sub new-len len.p))
+  =/  fft-results=(list bpoly)
+    ?:  (lth (lent poly-list) 2)
+      (turn poly-list bp-fft)
+    (batch-bp-ntt poly-list new-len (ordered-root new-len) ~ 0)
+  %+  roll  fft-results
+  |=  [fft=bpoly acc=(unit bpoly)]
   ?~  acc  (some fft)
   (some (~(weld bop u.acc) fft))
 ::

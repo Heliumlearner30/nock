@@ -19,7 +19,6 @@ nockvm.workspace = true
 nockvm_macros.workspace = true
 tracing.workspace = true
 bitvec.workspace = true
-rayon.workspace = true
 
 [dev-dependencies]
 quickcheck.workspace = true

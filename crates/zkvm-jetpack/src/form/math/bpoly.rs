@@ -1,4 +1,3 @@
-use rayon::prelude::*;
 use std::vec;
 
 use crate::form::math::{bpow, FieldError};
@@ -279,11 +278,15 @@ pub fn batch_bp_ntt(polys: &[BPolySlice], root: &Belt) -> Vec<Vec<Belt>> {
 
     debug_assert!(size.is_power_of_two());
 
-    // Parallel split of polynomials into evens and odds
-    let (all_evens, all_odds): (Vec<_>, Vec<_>) = polys
-        .par_iter()
-        .map(|poly| split_even_odd(poly.0))
-        .unzip();
+    // Split each polynomial into evens and odds
+    let mut all_evens = Vec::with_capacity(poly_count);
+    let mut all_odds = Vec::with_capacity(poly_count);
+
+    for poly in polys {
+        let (evens, odds) = split_even_odd(poly.0);
+        all_evens.push(evens);
+        all_odds.push(odds);
+    }
 
     // Convert to BPolySlice for recursion
     let evens_slices: Vec<BPolySlice> = all_evens.iter()
@@ -293,25 +296,22 @@ pub fn batch_bp_ntt(polys: &[BPolySlice], root: &Belt) -> Vec<Vec<Belt>> {
         .map(|v| PolySlice(v.as_slice()))
         .collect();
 
-    // Parallel recursive calls
+    // Recursive calls
     let root_squared = *root * *root;
-    let (evens_results, odds_results) = rayon::join(
-        || batch_bp_ntt(&evens_slices, &root_squared),
-        || batch_bp_ntt(&odds_slices, &root_squared)
-    );
+    let evens_results = batch_bp_ntt(&evens_slices, &root_squared);
+    let odds_results = batch_bp_ntt(&odds_slices, &root_squared);
 
     // Setup for butterfly operations
     let half = size / 2;
     let mut results = vec![vec![Belt(0); size]; poly_count];
 
-    // Parallel pre-computation of twiddle factors
+    // Pre-compute twiddle factors
     let twiddles: Vec<_> = (0..size)
-        .into_par_iter()
         .map(|i| bpow(root.0, i as u64))
         .collect();
 
-    // Parallel butterfly operations - element-first approach
-    results.par_iter_mut().enumerate().for_each(|(poly_idx, result_poly)| {
+    // Butterfly operations - element-first approach
+    for (poly_idx, result_poly) in results.iter_mut().enumerate() {
         for i in 0..size {
             let twiddle = twiddles[i];
             let mod_idx = i % half;
@@ -322,7 +322,7 @@ pub fn batch_bp_ntt(polys: &[BPolySlice], root: &Belt) -> Vec<Vec<Belt>> {
             
             result_poly[i] = even_val + twiddle_odd;
         }
-    });
+    }
 
     results
 }

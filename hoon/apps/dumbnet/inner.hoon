@@ -20,9 +20,9 @@
 ++  inner
   |_  k=kernel-state:dk
   +*  min      ~(. dumb-miner m.k constants.k)
-      pen      ~(. dumb-pending p.k constants.k)
+      pen      ~(. dumb-pending p.k c.k constants.k)
       der      ~(. dumb-derived d.k constants.k)
-      con      ~(. dumb-consensus c.k constants.k)
+      con      ~(. dumb-consensus c.k p.k constants.k)
       t        ~(. c-transact constants.k)
   ::
   ::  We should be calling the inner kernel load in case of update
@@ -38,20 +38,34 @@
     ~&  [%nockchain-state-version -.arg]
     ::  cut
     |^
-    ~>  %bout  (check-checkpoints (state-n-to-3 arg))
+    ~>  %bout  (check-checkpoints (state-n-to-4 arg))
     ::  this arm should be renamed each state upgrade to state-n-to-[latest] and extended to loop through all upgrades
-    ++  state-n-to-3
+    ++  state-n-to-4
       |=  arg=load-kernel-state:dk
       ^-  kernel-state:dk
-      ?.  ?=(%3 -.arg)
+      ?.  ?=(%4 -.arg)
         ~>  %slog.[0 leaf+"state upgrade required"]
         ?-  -.arg
             ::
           %0  $(arg (state-0-to-1 arg))
           %1  $(arg (state-1-to-2 arg))
           %2  $(arg (state-2-to-3 arg))
+          %3  $(arg (state-3-to-4 arg))
         ==
       arg
+    ::  upgrade kernel state 3 to kernel state 4
+    ::  (reset pending state)
+    ++  state-3-to-4
+      |=  arg=kernel-state-3:dk
+      ^-  kernel-state-4:dk
+      ~>  %slog.[0 leaf+"state version 3 to version 4"]
+      =|  p=pending-state-4:dk :: empty pending state
+      :: reset candidate block
+      ?~  heaviest-block.c.arg
+        [%4 c.arg p.arg a.arg m.arg d.arg constants.arg]
+      =.  candidate-acc.m.arg  (new:tx-acc:t (~(get z-by balance.c.arg) u.heaviest-block.c.arg))
+      =.  tx-ids.candidate-block.m.arg  ~
+      [%4 c.arg p a.arg m.arg d.arg constants.arg]
     ::  upgrade kernel-state-2 to kernel-state-3
     ++  state-2-to-3
       |=  arg=kernel-state-2:dk
@@ -64,7 +78,7 @@
         %-  ~(run z-by m)
         |=  =tx:t
         ^-  raw-tx:t  -.tx
-      =/  c=consensus-state:dk
+      =/  c=consensus-state-3:dk
         :*  balance.c.arg
             txs.c.arg
             raw-txs
@@ -186,12 +200,7 @@
       ::  scry for a raw-tx
       ^-  (unit (unit raw-tx:t))
       :-  ~
-      =/  hash  (from-b58:hash:t tid.pole)
-      =/  raw-from-pending
-        (~(get z-by raw-txs.p.k) hash)
-      ?~  raw-from-pending
-        (~(get z-by raw-txs.c.k) hash)
-      raw-from-pending
+      (get-raw-tx:pen (from-b58:hash:t tid.pole))
     ::
         [%heavy ~]
       ^-  (unit (unit (unit block-id:t)))
@@ -285,7 +294,7 @@
       ?+    wir  ~|("unsupported wire: {<wir>}" !!)
           [%poke src=?(%nc %timer %sys %miner %npc) ver=@ *]
         ?-  -.cause
-          %command  (handle-command now p.cause)
+          %command  (handle-command now eny p.cause)
           %fact     (handle-fact wir eny our now p.cause)
         ==
       ::
@@ -610,7 +619,7 @@
         [(liar-effect wir %tx-id-invalid)]~
       ::
       ::  do we already have raw-tx?
-      ?:  (~(has z-by raw-txs.p.k) id.raw)
+      ?:  (has-raw-tx:pen id.raw)
         :: do almost nothing (idempotency), we already have it
         :: but do tell the runtime we've already seen it
         ~>  %slog.[3 leaf+"tx-id-already-seen"]
@@ -636,6 +645,7 @@
           =.  p.k
             %+  roll  tx-pending-blocks
             |=  [id=block-id:t pend=_p.k]
+            =.  p.k  pend
             (remove-pending-block:pen id)
           ::
           ~>  %slog.[3 leaf+"page-pending-raw-tx-invalid"]
@@ -688,6 +698,7 @@
       =^  eff  k
         %+  roll  ~(tap z-in work)
         |=  [bid=block-id:t effs=(list effect:dk) k=_k]
+        =.  ^k  k
         ::  process the block, skipping the steps that we know its already
         ::  done by the fact that it was in pending-blocks.p.k
         =^  new-effs  k
@@ -700,6 +711,7 @@
           ==
         ::  remove the block from pending blocks. at this point, its either
         ::  been discarded by the kernel or lives in the consensus state
+        =.  p.^k  p.k
         =.  p.k  (remove-pending-block:pen bid)
         ::  add the effects onto the list and return the updated kernel state
         [(weld new-effs effs) k]
@@ -815,7 +827,7 @@
         [orphaned-block-span reorg-span effs]
       ::
       ::  refresh pending state
-      =.  p.k  (refresh-after-new-block:pen c.k retain.a.k)
+      =.  p.k  (refresh-after-new-block:pen retain.a.k)
       ::
       ::  tell the miner about the new block
       =.  m.k  (heard-new-block:min c.k p.k now)
@@ -823,7 +835,7 @@
       ::  update derived state
       =.  d.k  (update:der c.k pag)
       ?.  =(old-heavy heaviest-block.c.k)
-        =^  mining-effs  k  (do-mine (hash-noun-varlen:tip5:zeke [%nonce eny]))
+        =^  mining-effs  k  (do-mine (hash-noun-varlen:tip5:zeke [%nonce (mod eny p.zeke)]))
         =.  effs  (weld mining-effs effs)
         effs^k
       ::
@@ -864,7 +876,7 @@
       (some id.pole)
     ::
     ++  handle-command
-      |=  [now=@da =command:dk]
+      |=  [now=@da eny=@ =command:dk]
       ^-  [(list effect:dk) kernel-state:dk]
       ~>  %slog.[3 (cat 3 'command: ' -.command)]
       ::  ~&  "handling command: {<-.command>}"
@@ -879,7 +891,7 @@
       |^
       ?-  -.command
           %born
-        do-born
+        (do-born eny)
       ::
           %pow
         do-pow
@@ -915,6 +927,7 @@
       ==
       ::
       ++  do-born
+        |=  eny=@
         ^-  [(list effect:dk) kernel-state:dk]
         ?>  ?=([%born *] command)
         ::  once born command is registered, the init phase is over
@@ -937,11 +950,17 @@
         :: Also emit %seen for the heaviest block so our cache can start to update
         =/  height=page-number:t
           +(height:(~(got z-by blocks.c.k) u.heaviest-block.c.k))
+        =/  born-effects=(list effect:dk)
+          :~  [%request %block %by-height height]
+              [%seen %block u.heaviest-block.c.k `height]
+          ==
+        =/  nonce=noun-digest:tip5:zeke  (hash-noun-varlen:tip5:zeke [%nonce (mod eny p:zeke)])
+        =/  k=kernel-state:dk  k
+        =^  mine-effects=(list effect:dk)  k
+          (do-mine nonce)
         ~>  %slog.[0 leaf+"dumbnet born"]
         :_  k
-        :~  [%request %block %by-height height]
-            [%seen %block u.heaviest-block.c.k `height]
-        ==
+        (weld mine-effects born-effects)
       ::
       ++  do-pow
         ^-  [(list effect:dk) kernel-state:dk]
@@ -959,12 +978,16 @@
           ?-  version
             %0  [%mine %0 commit next-nonce.m.k pow-len:t]~
             %1  [%mine %1 commit next-nonce.m.k pow-len:t]~
+            %2  [%mine %2 commit next-nonce.m.k pow-len:t]~
           ==
         ?:  %+  check-target:mine  dig.command
             (~(got z-by targets.c.k) parent.candidate-block.m.k)
           =.  m.k  (set-pow:min prf.command)
           =.  m.k  set-digest:min
-          (heard-block /poke/miner now candidate-block.m.k eny)
+          =^  heard-block-effs  k  (heard-block /poke/miner now candidate-block.m.k eny)
+          =^  mine-effs  k  (do-mine (atom-to-digest:tip5:zeke dig.command))
+          :_  k
+          (weld heard-block-effs mine-effs)
         :: mine the next nonce
         (do-mine (atom-to-digest:tip5:zeke dig.command))
       ::
@@ -1133,6 +1156,7 @@
           ?-  proof-version
             %0  [%0 commit nonce pow-len:t]
             %1  [%1 commit nonce pow-len:t]
+            %2  [%2 commit nonce pow-len:t]
           ==
         =.  next-nonce.m.k  nonce
         ~&  mining-on+nonce

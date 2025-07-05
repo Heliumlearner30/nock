@@ -585,56 +585,39 @@
       |=  [coeff-idx=@ comp=bpoly]
       [deg idx coeff-idx comp]
     ::
-    ::  Step 3: Group coefficients by size for batch IFFT (bucket sort)
-    =/  size-groups
-      =/  combined
-        ^-  (map @ (list [deg=@ global-idx=@ coeff-idx=@ poly=bpoly]))
-        %+  roll  all-coeffs-with-metadata
-        |=  $:  [deg=@ global-idx=@ coeff-idx=@ poly=bpoly]
-                acc=(map @ (list [deg=@ global-idx=@ coeff-idx=@ poly=bpoly]))
-            ==
-        =/  size  len.poly
-        =/  existing  (~(gut by acc) size ~)
-        (~(put by acc) size [[deg global-idx coeff-idx poly] existing])
-      ::~&  :-  %batch-size-distribution
-      ::    %+  turn  ~(tap by combined)
-      ::    |=  [size=@ group=(list [deg=@ global-idx=@ coeff-idx=@ poly=bpoly])]
-      ::    [size count=(lent group)]
-      combined
-      ::  Step 4: Compute IFFT results map
-      =/  ifft-results
-        %-  malt
-        %-  zing
-        %+  turn  ~(tap by size-groups)
-        |=  [size=@ group=(list [deg=@ global-idx=@ coeff-idx=@ poly=bpoly])]
-        ^-  (list [* bpoly])
-        =/  is-pow2  =((bex (xeb (dec size))) size)
-        ?:  ?&(is-pow2 (gth size 1) (gth (lent group) 1))
-          :: Batch route
-          =/  meta-poly-pairs=(list [meta=* poly=bpoly])
-            %+  turn  group
-            |=  [deg=@ global-idx=@ coeff-idx=@ poly=bpoly]
-            [[deg global-idx coeff-idx] poly]
-          ~(tap by (batch-ifft-by-size meta-poly-pairs))
-        :: Fallback to individual IFFT
-        %+  turn  group
-        |=  [deg=@ global-idx=@ coeff-idx=@ poly=bpoly]
-        [[deg global-idx coeff-idx] (bp-ifft poly)]
-      ::  Apply weights and accumulate results
-      =/  result
-        %+  roll  all-coeffs-with-metadata
-        |=  [[deg=@ global-idx=@ coeff-idx=@ poly=bpoly] acc=_zero-bpoly]
-        =/  comp-coeff  (~(got by ifft-results) [deg global-idx coeff-idx])
-        =/  weight-idx  (add global-idx coeff-idx)
-        =/  alpha  (~(snag bop weights) (mul 2 weight-idx))
-        =/  beta   (~(snag bop weights) (add 1 (mul 2 weight-idx)))
-        %+  bpadd  acc
-        %+  bpadd
-          (bpscal beta comp-coeff)
-        %-  %~  weld  bop
-          ~+  (init-bpoly (reap (sub fri-deg-bound.dp deg) 0))
-        (bpscal alpha comp-coeff)
-      (bpcan result)
+    ::  Step 3: Batch IFFT processing (all polynomials same size)
+    =/  ifft-results
+      ?~  all-coeffs-with-metadata  *(map * bpoly)
+      =/  size  len.poly.i.all-coeffs-with-metadata
+      =/  is-pow2  =((bex (xeb (dec size))) size)
+      ?:  ?&(is-pow2 (gth size 1) (gth (lent all-coeffs-with-metadata) 1))
+        :: Batch route
+        =/  meta-poly-pairs=(list [meta=* poly=bpoly])
+          %+  turn  all-coeffs-with-metadata
+          |=  [deg=@ global-idx=@ coeff-idx=@ poly=bpoly]
+          [[deg global-idx coeff-idx] poly]
+        (batch-ifft-by-size meta-poly-pairs)
+      :: Fallback to individual IFFT
+      %-  malt
+      %+  turn  all-coeffs-with-metadata
+      |=  [deg=@ global-idx=@ coeff-idx=@ poly=bpoly]
+      [[deg global-idx coeff-idx] (bp-ifft poly)]
+    ::
+    ::  Step 4: Apply weights and accumulate results
+    =/  result
+      %+  roll  all-coeffs-with-metadata
+      |=  [[deg=@ global-idx=@ coeff-idx=@ poly=bpoly] acc=_zero-bpoly]
+      =/  comp-coeff  (~(got by ifft-results) [deg global-idx coeff-idx])
+      =/  weight-idx  (add global-idx coeff-idx)
+      =/  alpha  (~(snag bop weights) (mul 2 weight-idx))
+      =/  beta   (~(snag bop weights) (add 1 (mul 2 weight-idx)))
+      %+  bpadd  acc
+      %+  bpadd
+        (bpscal beta comp-coeff)
+      %-  %~  weld  bop
+        ~+  (init-bpoly (reap (sub fri-deg-bound.dp deg) 0))
+      (bpscal alpha comp-coeff)
+          (bpcan result)
 --
 ::
 :: compute the DEEP Composition Polynomial

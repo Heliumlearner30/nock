@@ -356,9 +356,13 @@ fn precompute_all_twiddles(root: Belt, max_size: usize) -> Vec<Vec<u64>> {
     
     for _level in 0..num_levels {
         let mut level_twiddles = Vec::with_capacity(current_size);
-        for i in 0..current_size {
-            level_twiddles.push(bpow(current_root.0, i as u64));
+
+        let mut w = Belt(1);
+        for _ in 0..current_size {
+            level_twiddles.push(w.0);
+            w = w * current_root;
         }
+        
         all_twiddles.push(level_twiddles);
         
         // Next level uses squared root and half the size

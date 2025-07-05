@@ -266,13 +266,22 @@
         [~ ~]
       =+  summary=(to-page-summary:page:t (to-page:local-page:t u.heaviest-block))
       ``height.summary
-        [%cstate ~]
-      ^-  (unit (unit *))
-      ``(jam c.k)
-        [%commit ~]
-      =/  commit=block-commitment:t  (block-commitment:page:t candidate-block.m.k)
-      =+  jammed=(jam commit)
-      ``jammed
+    ::
+        [%template ~]
+      =/  network-target=bignum:bignum:zeke
+        (~(got z-by targets.c.k) parent.candidate-block.m.k)
+      ::
+      =/  commit=block-commitment:t
+        (block-commitment:page:t candidate-block.m.k)
+      ::
+      :+  ~  ~
+      :+  (jam commit)
+        network-target=(merge:bignum:zeke network-target)
+      ::  this is obviously a placeholder!
+      ::  the idea is to have this be dynamic based on the
+      ::  network target minus some reasonable value
+      pool-target=100.000
+    ::
     ==
   ::
   ++  poke
@@ -917,9 +926,6 @@
       ::
           %btc-data
         do-btc-data
-      ::
-        ::   %ff-consensus
-        :: do-ff-consensus
       ::  !!! COMMANDS BELOW ARE ONLY FOR TESTING. NEVER CALL IF RUNNING MAINNET !!!
       ::
           %set-constants
@@ -989,7 +995,8 @@
           :_  k
           (weld heard-block-effs mine-effs)
         :: mine the next nonce
-        (do-mine (atom-to-digest:tip5:zeke dig.command))
+        :: (do-mine (atom-to-digest:tip5:zeke dig.command))
+        `k
       ::
       ++  do-set-mining-key
         ^-  [(list effect:dk) kernel-state:dk]
@@ -1105,22 +1112,6 @@
         ?>  ?=([%btc-data *] command)
         =.  c.k  (add-btc-data:con p.command)
         `k
-      :: ++  do-ff-consensus
-      ::   ^-  [(list effect:dk) kernel-state:dk]
-      ::   ?>  ?=([%ff-consensus *] command)
-      ::   ::  get incoming summary
-      ::   ?~  heaviest-block.p.command  !!
-      ::   =/  incoming-heaviest-block   (~(get z-by blocks.p.command) u.heaviest-block.p.command)
-      ::   ?~  incoming-heaviest-block   !!
-      ::   =+  incoming-summary=(to-page-summary:page:t (to-page:local-page:t u.incoming-heaviest-block))
-      ::   ::  get present summary
-      ::   ?~  heaviest-block.c.k  !!
-      ::   =/  heaviest-block      (~(get z-by blocks.c.k) u.heaviest-block.c.k)
-      ::   ?~  heaviest-block      !!
-      ::   =+  summary=(to-page-summary:page:t (to-page:local-page:t u.heaviest-block))
-      ::   ?>  (gth height.incoming-summary height.summary)
-      ::   =.  c.k  p.command
-      ::   `k
       --::+handle-command
     ::
     ++  handle-fact
@@ -1159,7 +1150,7 @@
             %2  [%2 commit nonce pow-len:t]
           ==
         =.  next-nonce.m.k  nonce
-        ~&  mining-on+nonce
+        :: ~&  mining-on+nonce
         :_  k
         [%mine proof-input]~
       ::

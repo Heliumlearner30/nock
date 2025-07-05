@@ -229,7 +229,6 @@
       :: set expected btc height and msg hash of genesis block
       [%set-genesis-seal p=[height=page-number:dt msg-hash=@t]]
       [%btc-data p=(unit btc-hash:dt)]  ::  data from BTC RPC node
-      :: [%ff-consensus p=consensus-state-2]
       test-command
   ==
 ::

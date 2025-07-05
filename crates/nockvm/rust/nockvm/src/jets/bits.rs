@@ -6,6 +6,7 @@ use std::cmp::{max, min};
 use crate::interpreter::Context;
 use crate::jets::util::*;
 use crate::jets::Result;
+use crate::mem::NockStack;
 use crate::noun::{IndirectAtom, Noun, D};
 
 crate::gdb!();
@@ -147,9 +148,18 @@ pub fn jet_rap(context: &mut Context, subject: Noun) -> Result {
 }
 
 pub fn jet_rep(context: &mut Context, subject: Noun) -> Result {
+    let stack = &mut context.stack;
+
     let arg = slot(subject, 6)?;
-    let (bloq, step) = bite(slot(arg, 2)?)?;
-    let original_list = slot(arg, 3)?;
+    let arg2 = slot(arg, 2)?;
+    let arg3 = slot(arg, 3)?;
+
+    rep(stack, arg2, arg3)
+}
+
+pub fn rep(stack: &mut NockStack, a: Noun, b: Noun) -> Result {
+    let (bloq, step) = bite(a)?;
+    let original_list = b;
 
     let mut len = 0usize;
     let mut list = original_list;
@@ -169,7 +179,7 @@ pub fn jet_rep(context: &mut Context, subject: Noun) -> Result {
     } else {
         unsafe {
             let (mut new_indirect, new_slice) =
-                IndirectAtom::new_raw_mut_bitslice(&mut context.stack, bite_to_word(bloq, len)?);
+                IndirectAtom::new_raw_mut_bitslice(stack, bite_to_word(bloq, len)?);
             let mut pos = 0;
             let mut list = original_list;
             loop {

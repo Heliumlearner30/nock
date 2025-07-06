@@ -723,17 +723,11 @@
   ^-  bpoly
   %-  need
   =/  new-len  (mul height ntt-len)
-  =/  poly-list=(list bpoly)
-    %+  turn  (range len.array.polys)
-    |=  i=@
-    =/  p=bpoly  (~(snag-as-bpoly ave polys) i)
-    (~(zero-extend bop p) (sub new-len len.p))
-  =/  fft-results=(list bpoly)
-    ?:  (lth (lent poly-list) 2)
-      (turn poly-list bp-fft)
-    (batch-bp-ntt poly-list new-len (ordered-root new-len) ~ 0)
-  %+  roll  fft-results
-  |=  [fft=bpoly acc=(unit bpoly)]
+  %+  roll  (range len.array.polys)
+  |=  [i=@ acc=(unit bpoly)]
+  =/  p=bpoly  (~(snag-as-bpoly ave polys) i)
+  =/  fft=bpoly
+    (bp-fft (~(zero-extend bop p) (sub new-len len.p)))
   ?~  acc  (some fft)
   (some (~(weld bop u.acc) fft))
 ::

@@ -79,13 +79,13 @@
     ::
     ::  validate the proof
     =/  valid=?
-      (verify:nv prf ~ eny.cause)
+      (verify:nv prf ~ eny.share.cause)
     ?.  valid
       ::TODO ban?
       :_  k
       [%bad-share ~]~
     ::
-    ?:  (check-target-atom:mine dig.cause network-target.cause)
+    ?:  (check-target-atom:mine dig.share.cause network-target.cause)
       ::  if it hit the network target, we don't actually care whether the miner claimed it
       ::  was or not in .claimed-target - if they somehow accidentally called it a pool share,
       ::  it seems wrong to punish them when its still a good block.
@@ -102,13 +102,13 @@
       :_  k
       [%bad-share ~]~
     ::
-    ?:  (check-target-atom:mine dig.cause pool-target.cause)
+    ?:  (check-target-atom:mine dig.share.cause pool-target.cause)
       ::  we did not meet the network target, but we did meet the pool target
       :_  k
       [%good-share ~]~
     ::  valid proof submitted that did not meet the pool or network difficulty. therefore
     ::  it should not have been submitted by the miner at all.
-    :_  `k
+    :_  k
     [%bad-share ~]~
   --
 --

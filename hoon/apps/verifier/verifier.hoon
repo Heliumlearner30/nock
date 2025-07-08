@@ -26,7 +26,6 @@
           network-target=@
           pool-target=@
           pow-len=@
-          valid-commitments=(list noun-digest:tip5)
   ==  ==
 ::
 ::  since we are only pulling one share at a time and responding about whether it
@@ -65,14 +64,7 @@
     ::
     ?>  ?=([%share *] cause)
     ::
-    ::TODO verify share and emit appropriate effect
     =/  prf=proof  prf.share.cause
-    ::  check that the commitment is one we asked for
-    =/  check-commit=(unit @)  (find ~[commmit.share.cause] valid-commitments.cause)
-    ?~  check-commit
-      ::  commitment invalid, bad share
-      :_  k
-      [%bad-share ~]~
     ::
     ::  validate that the correct powork puzzle was solved
     =/  check-pow-puzzle=?

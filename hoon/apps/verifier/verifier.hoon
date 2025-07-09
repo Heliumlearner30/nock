@@ -22,9 +22,15 @@
 +$  cause
   $%  $:  %share
           share=[eny=@ commit=noun-digest:tip5 prf=proof dig=tip5-hash-atom]
-          claimed-target=?(%network %pool)
-          network-target=@
-          pool-target=@
+          ::  we can just send in one target, the target we want, rather than
+          ::  distinguishing between the two with a @tas
+          ::
+          ::  we should ban someone who sends us a non-network share at the
+          ::  network verifier
+          ::  claimed-target=?(%network %pool)
+          ::  network-target=@
+          ::  pool-target=@
+          target=@
           pow-len=@
   ==  ==
 ::

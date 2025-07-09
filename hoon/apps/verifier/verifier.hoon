@@ -52,9 +52,7 @@
       ~>  %slog.[0 [%leaf "error: bad cause"]]
       `k
     =/  cause  u.cause
-    ::
     ?>  ?=([%share *] cause)
-    ::
     =/  prf=proof  prf.share.cause
     ::
     ::  validate that the correct powork puzzle was solved

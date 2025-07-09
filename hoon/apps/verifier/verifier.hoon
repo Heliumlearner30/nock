@@ -27,7 +27,7 @@
 ::  i'm going to skip it for now.
 +$  effect
   $%  [%good-share ~]
-      [%bad-share ~]
+      [%bad-share why=@tas]
   ==
 --
 ::
@@ -46,7 +46,9 @@
   ++  poke
     |=  [wir=wire eny=@ our=@ux now=@da dat=*]
     ^-  [(list effect) k=kernel-state]
+    ~&  "foo"
     ::
+    ~&  dat+dat
     =/  cause  ((soft cause) dat)
     ?~  cause
       ~>  %slog.[0 [%leaf "error: bad cause"]]
@@ -63,14 +65,14 @@
       =(pow-len.cause len.puzzle)
     ?.  check-pow-puzzle
       :_  k
-      [%bad-share ~]~
+      [%bad-share %wrong-pow-length]~
     ::
     ::  validate the proof
     =/  valid=?
       (verify:nv prf ~ eny.share.cause)
     ?.  valid
       :_  k
-      [%bad-share ~]~
+      [%bad-share %bad-proof]~
     ::
     ?:  (check-target-atom:mine dig.share.cause target.cause)
       ::  they hit the target, credit the share
@@ -78,6 +80,6 @@
       [%good-share ~]~
     ::  they sent in a valid share that did not hit the target
     :_  k
-    [%bad-share ~]~
+    [%bad-share %below-target]~
   --
 --

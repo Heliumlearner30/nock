@@ -20,7 +20,7 @@
   |_  k=kernel-state:dk
   +*  min      ~(. dumb-miner m.k constants.k)
       der      ~(. dumb-derived d.k constants.k)
-      con      ~(. dumb-consensus c.k p.k constants.k)
+      con      ~(. dumb-consensus c.k constants.k)
       t        ~(. c-transact constants.k)
   ::
   ::  We should be calling the inner kernel load in case of update
@@ -314,6 +314,7 @@
       ``height.summary
     ::
         [%template ~]
+      ^-  (unit (unit [block-commitment:t @ @]))
       =/  network-target=bignum:bignum:zeke
         (~(got z-by targets.c.k) parent.candidate-block.m.k)
       ::
@@ -321,7 +322,7 @@
         (block-commitment:page:t candidate-block.m.k)
       ::
       :+  ~  ~
-      :+  (jam commit)
+      :+  commit
         network-target=(merge:bignum:zeke network-target)
       ::  this is obviously a placeholder!
       ::  the idea is to have this be dynamic based on the

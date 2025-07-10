@@ -6,7 +6,7 @@
 ::
 ::  this library is where _every_ update to the consensus state
 ::  occurs, no matter how minor.
-|_  [c=consensus-state:dk p=pending-state:dk =blockchain-constants:dumb-transact]
+|_  [c=consensus-state:dk =blockchain-constants:dumb-transact]
 +*  t  ~(. dumb-transact blockchain-constants)
 ::
 ++  has-raw-tx

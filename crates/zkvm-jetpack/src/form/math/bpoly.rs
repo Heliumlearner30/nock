@@ -97,6 +97,15 @@ pub fn bpsub_(left: &[Belt], right: &[Belt]) -> Vec<Belt> {
 
 #[inline(always)]
 pub fn bpmul(a: &[Belt], b: &[Belt], res: &mut [Belt]) {
+    debug_assert!(res.len() >= a.len() + b.len() - 1);
+
+    unsafe {
+        bpmul_optimized_unsafe(a, b, res);
+    }
+}
+
+#[inline(always)]
+pub unsafe fn bpmul_optimized_unsafe(a: &[Belt], b: &[Belt], res: &mut [Belt]) {
     if a.is_zero() || b.is_zero() {
         res.fill(Belt(0));
         return;
@@ -107,12 +116,219 @@ pub fn bpmul(a: &[Belt], b: &[Belt], res: &mut [Belt]) {
     let a_len = a.len();
     let b_len = b.len();
 
-    for i in 0..a_len {
-        if a[i] == 0 {
+    let (shorter, longer) = if a_len <= b_len { (a, b) } else { (b, a) };
+    let shorter_len = shorter.len();
+    let longer_len = longer.len();
+
+    let shorter_ptr = shorter.as_ptr();
+    let longer_ptr = longer.as_ptr();
+    let res_ptr = res.as_mut_ptr();
+
+    if shorter_len > 128 && longer_len > 128 {
+        blocked_multiply(shorter_ptr, longer_ptr, res_ptr, shorter_len, longer_len);
+    } else if shorter_len > 32 {
+        medium_multiply(shorter_ptr, longer_ptr, res_ptr, shorter_len, longer_len);
+    } else {
+        small_multiply(shorter_ptr, longer_ptr, res_ptr, shorter_len, longer_len);
+    }
+}
+
+#[inline(always)]
+unsafe fn blocked_multiply(
+    shorter_ptr: *const Belt,
+    longer_ptr: *const Belt,
+    res_ptr: *mut Belt,
+    shorter_len: usize,
+    longer_len: usize,
+) {
+    const BLOCK_SIZE: usize = 32;
+
+    for i_block in (0..shorter_len).step_by(BLOCK_SIZE) {
+        let i_end = (i_block + BLOCK_SIZE).min(shorter_len);
+
+        for j_block in (0..longer_len).step_by(BLOCK_SIZE) {
+            let j_end = (j_block + BLOCK_SIZE).min(longer_len);
+
+            for i in i_block..i_end {
+                let a_i = *shorter_ptr.add(i);
+                if a_i.0 == 0 {
+                    continue;
+                }
+
+                let res_base = res_ptr.add(i);
+                let mut j = j_block;
+
+                while j + 4 <= j_end {
+                    let b0 = *longer_ptr.add(j);
+                    let b1 = *longer_ptr.add(j + 1);
+                    let b2 = *longer_ptr.add(j + 2);
+                    let b3 = *longer_ptr.add(j + 3);
+
+                    *res_base.add(j) += a_i * b0;
+                    *res_base.add(j + 1) += a_i * b1;
+                    *res_base.add(j + 2) += a_i * b2;
+                    *res_base.add(j + 3) += a_i * b3;
+                    j += 4;
+                }
+
+                while j < j_end {
+                    *res_base.add(j) += a_i * *longer_ptr.add(j);
+                    j += 1;
+                }
+            }
+        }
+    }
+}
+
+#[inline(always)]
+unsafe fn medium_multiply(
+    shorter_ptr: *const Belt,
+    longer_ptr: *const Belt,
+    res_ptr: *mut Belt,
+    shorter_len: usize,
+    longer_len: usize,
+) {
+    for i in 0..shorter_len {
+        let a_i = *shorter_ptr.add(i);
+        if a_i.0 == 0 {
             continue;
         }
-        for j in 0..b_len {
-            res[i + j] = res[i + j] + a[i] * b[j];
+
+        let res_base = res_ptr.add(i);
+        let mut j = 0;
+
+        while j + 8 <= longer_len {
+            let b0 = *longer_ptr.add(j);
+            let b1 = *longer_ptr.add(j + 1);
+            let b2 = *longer_ptr.add(j + 2);
+            let b3 = *longer_ptr.add(j + 3);
+            let b4 = *longer_ptr.add(j + 4);
+            let b5 = *longer_ptr.add(j + 5);
+            let b6 = *longer_ptr.add(j + 6);
+            let b7 = *longer_ptr.add(j + 7);
+
+            *res_base.add(j) += a_i * b0;
+            *res_base.add(j + 1) += a_i * b1;
+            *res_base.add(j + 2) += a_i * b2;
+            *res_base.add(j + 3) += a_i * b3;
+            *res_base.add(j + 4) += a_i * b4;
+            *res_base.add(j + 5) += a_i * b5;
+            *res_base.add(j + 6) += a_i * b6;
+            *res_base.add(j + 7) += a_i * b7;
+            j += 8;
+        }
+
+        while j + 4 <= longer_len {
+            let b0 = *longer_ptr.add(j);
+            let b1 = *longer_ptr.add(j + 1);
+            let b2 = *longer_ptr.add(j + 2);
+            let b3 = *longer_ptr.add(j + 3);
+
+            *res_base.add(j) += a_i * b0;
+            *res_base.add(j + 1) += a_i * b1;
+            *res_base.add(j + 2) += a_i * b2;
+            *res_base.add(j + 3) += a_i * b3;
+            j += 4;
+        }
+
+        while j < longer_len {
+            *res_base.add(j) += a_i * *longer_ptr.add(j);
+            j += 1;
+        }
+    }
+}
+
+#[inline(always)]
+unsafe fn small_multiply(
+    shorter_ptr: *const Belt,
+    longer_ptr: *const Belt,
+    res_ptr: *mut Belt,
+    shorter_len: usize,
+    longer_len: usize,
+) {
+    for i in 0..shorter_len {
+        let a_i = *shorter_ptr.add(i);
+        if a_i.0 == 0 {
+            continue;
+        }
+
+        let res_base = res_ptr.add(i);
+        let mut j = 0;
+
+        while j + 16 <= longer_len {
+            let b0 = *longer_ptr.add(j);
+            let b1 = *longer_ptr.add(j + 1);
+            let b2 = *longer_ptr.add(j + 2);
+            let b3 = *longer_ptr.add(j + 3);
+            let b4 = *longer_ptr.add(j + 4);
+            let b5 = *longer_ptr.add(j + 5);
+            let b6 = *longer_ptr.add(j + 6);
+            let b7 = *longer_ptr.add(j + 7);
+            let b8 = *longer_ptr.add(j + 8);
+            let b9 = *longer_ptr.add(j + 9);
+            let b10 = *longer_ptr.add(j + 10);
+            let b11 = *longer_ptr.add(j + 11);
+            let b12 = *longer_ptr.add(j + 12);
+            let b13 = *longer_ptr.add(j + 13);
+            let b14 = *longer_ptr.add(j + 14);
+            let b15 = *longer_ptr.add(j + 15);
+
+            *res_base.add(j) += a_i * b0;
+            *res_base.add(j + 1) += a_i * b1;
+            *res_base.add(j + 2) += a_i * b2;
+            *res_base.add(j + 3) += a_i * b3;
+            *res_base.add(j + 4) += a_i * b4;
+            *res_base.add(j + 5) += a_i * b5;
+            *res_base.add(j + 6) += a_i * b6;
+            *res_base.add(j + 7) += a_i * b7;
+            *res_base.add(j + 8) += a_i * b8;
+            *res_base.add(j + 9) += a_i * b9;
+            *res_base.add(j + 10) += a_i * b10;
+            *res_base.add(j + 11) += a_i * b11;
+            *res_base.add(j + 12) += a_i * b12;
+            *res_base.add(j + 13) += a_i * b13;
+            *res_base.add(j + 14) += a_i * b14;
+            *res_base.add(j + 15) += a_i * b15;
+            j += 16;
+        }
+
+        while j + 8 <= longer_len {
+            let b0 = *longer_ptr.add(j);
+            let b1 = *longer_ptr.add(j + 1);
+            let b2 = *longer_ptr.add(j + 2);
+            let b3 = *longer_ptr.add(j + 3);
+            let b4 = *longer_ptr.add(j + 4);
+            let b5 = *longer_ptr.add(j + 5);
+            let b6 = *longer_ptr.add(j + 6);
+            let b7 = *longer_ptr.add(j + 7);
+
+            *res_base.add(j) += a_i * b0;
+            *res_base.add(j + 1) += a_i * b1;
+            *res_base.add(j + 2) += a_i * b2;
+            *res_base.add(j + 3) += a_i * b3;
+            *res_base.add(j + 4) += a_i * b4;
+            *res_base.add(j + 5) += a_i * b5;
+            *res_base.add(j + 6) += a_i * b6;
+            *res_base.add(j + 7) += a_i * b7;
+            j += 8;
+        }
+
+        while j + 4 <= longer_len {
+            let b0 = *longer_ptr.add(j);
+            let b1 = *longer_ptr.add(j + 1);
+            let b2 = *longer_ptr.add(j + 2);
+            let b3 = *longer_ptr.add(j + 3);
+
+            *res_base.add(j) += a_i * b0;
+            *res_base.add(j + 1) += a_i * b1;
+            *res_base.add(j + 2) += a_i * b2;
+            *res_base.add(j + 3) += a_i * b3;
+            j += 4;
+        }
+
+        while j < longer_len {
+            *res_base.add(j) += a_i * *longer_ptr.add(j);
+            j += 1;
         }
     }
 }

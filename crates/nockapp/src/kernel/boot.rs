@@ -9,13 +9,13 @@ use nockvm::trace::{
     TracingBackend,
 };
 use tokio::fs;
-use tracing::{debug, info, Level};
+use tracing::{debug, info, Level, Subscriber};
 use tracing_subscriber::fmt::format::Writer;
 use tracing_subscriber::fmt::{FmtContext, FormatEvent, FormatFields};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::registry::LookupSpan;
 use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::{fmt, EnvFilter};
+use tracing_subscriber::{fmt, EnvFilter, Layer};
 
 use crate::export::ExportedState;
 use crate::kernel::form::Kernel;
@@ -253,11 +253,35 @@ where
     }
 }
 
-/// Initialize tracing with appropriate configuration based on CLI arguments.
-pub fn init_default_tracing(cli: &Cli) {
+fn init_with_default_filter<T: Subscriber + Send + Sync + for<'a> LookupSpan<'a>>(reg: T) {
     let filter = EnvFilter::new(
         std::env::var("RUST_LOG").unwrap_or_else(|_| DEFAULT_LOG_FILTER.to_string()),
     );
+
+    let reg = reg.with(filter);
+
+    #[cfg(feature = "tracing-tracy")]
+    if ["1", "true"].contains(&std::env::var("TRACY_ENABLE").as_deref().unwrap_or_default()) {
+        let only_nockcode = ["1", "true"].contains(
+            &std::env::var("TRACY_ONLY_NOCKCODE")
+                .as_deref()
+                .unwrap_or_default(),
+        );
+        let nockcode_filter = tracing_subscriber::filter::filter_fn(move |meta| {
+            !only_nockcode || meta.target() == "nockcode"
+        });
+        let tracy = tracing_tracy::TracyLayer::default();
+
+        reg.with(tracy.with_filter(nockcode_filter)).init();
+
+        return;
+    }
+
+    reg.init();
+}
+
+/// Initialize tracing with appropriate configuration based on CLI arguments.
+pub fn init_default_tracing(cli: &Cli) {
     let use_ansi = cli.color == ColorChoice::Auto || cli.color == ColorChoice::Always;
 
     // Build and initialize the subscriber
@@ -268,20 +292,16 @@ pub fn init_default_tracing(cli: &Cli) {
             .with_ansi(use_ansi)
             .event_format(MinimalFormatter);
 
-        tracing_subscriber::registry()
-            .with(fmt_layer)
-            .with(filter)
-            .init();
+        init_with_default_filter(tracing_subscriber::registry().with(fmt_layer));
     } else {
-        tracing_subscriber::registry()
-            .with(
+        init_with_default_filter(
+            tracing_subscriber::registry().with(
                 fmt::layer()
                     .with_ansi(use_ansi)
                     .with_target(true)
                     .with_level(true),
-            )
-            .with(filter)
-            .init();
+            ),
+        );
     }
 }
 

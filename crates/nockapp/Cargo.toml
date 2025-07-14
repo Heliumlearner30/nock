@@ -44,6 +44,7 @@ tower-http = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 tracing-test = { workspace = true }
+tracing-tracy = { workspace = true, optional = true }
 yaque = { workspace = true }
 
 # Let's Encrypt and HTTPS support

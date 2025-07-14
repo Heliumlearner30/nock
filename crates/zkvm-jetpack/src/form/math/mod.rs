@@ -4,6 +4,7 @@ pub mod fext;
 pub mod fpoly;
 pub mod gen_trace;
 pub mod mary;
+pub mod mont;
 pub mod prover;
 pub mod tip5;
 

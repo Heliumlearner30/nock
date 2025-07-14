@@ -1,10 +1,15 @@
 #![allow(clippy::len_without_is_empty)]
 
+use std::fmt::Debug;
 use std::slice::Iter;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Default)]
 #[repr(transparent)]
 pub struct Belt(pub u64);
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Default)]
+#[repr(transparent)]
+pub struct Melt(pub u64);
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Default)]
 #[repr(transparent)]
@@ -52,6 +57,25 @@ impl Element for Belt {
     #[inline(always)]
     fn one() -> Self {
         Belt::one()
+    }
+}
+
+impl Element for Melt {
+    #[inline(always)]
+    fn is_zero(&self) -> bool {
+        self.0 == Melt::zero().0
+    }
+    #[inline(always)]
+    fn zero() -> Self {
+        Belt::zero().into()
+    }
+    #[inline(always)]
+    fn len() -> usize {
+        1
+    }
+    #[inline(always)]
+    fn one() -> Self {
+        Belt::one().into()
     }
 }
 
@@ -233,6 +257,18 @@ impl<'a> From<&'a Felt> for BPolySlice<'a> {
 impl<'a> From<&'a BPolySliceMut<'_>> for BPolySlice<'a> {
     fn from(p: &'a BPolySliceMut) -> Self {
         Self(p.0)
+    }
+}
+
+impl From<PolyVec<Melt>> for PolyVec<Belt> {
+    fn from(v: PolyVec<Melt>) -> Self {
+        PolyVec(Belt::from_melt_vec(v.0))
+    }
+}
+
+impl From<PolyVec<Belt>> for PolyVec<Melt> {
+    fn from(v: PolyVec<Belt>) -> Self {
+        PolyVec(Melt::from_belt_vec(v.0))
     }
 }
 

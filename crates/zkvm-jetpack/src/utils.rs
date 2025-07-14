@@ -6,7 +6,7 @@ use nockvm::mem::NockStack;
 use nockvm::noun::{Atom, IndirectAtom, Noun, D, DIRECT_MAX, NONE, T};
 pub use tracing::{debug, trace};
 
-use crate::form::Belt;
+use crate::form::{Belt, Melt};
 
 // tests whether a felt atom has the leading 1. we cannot actually test
 // Felt, because it doesn't include the leading 1.
@@ -85,6 +85,12 @@ pub fn fits_in_u128(bits: &BitSlice<u64, Lsb0>) -> bool {
 // convert a belt to noun
 #[inline(always)]
 pub fn belt_as_noun(stack: &mut NockStack, res: Belt) -> Noun {
+    u128_as_noun(stack, res.0 as u128)
+}
+
+// convert a belt to noun
+#[inline(always)]
+pub fn melt_as_noun(stack: &mut NockStack, res: Melt) -> Noun {
     u128_as_noun(stack, res.0 as u128)
 }
 

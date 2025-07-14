@@ -1,6 +1,5 @@
 #![allow(dead_code)]
 use std::any::Any;
-use std::fs::File;
 use std::future::Future;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -16,12 +15,13 @@ use nockvm::jets::nock::util::mook;
 use nockvm::mem::NockStack;
 use nockvm::mug::met3_usize;
 use nockvm::noun::{Atom, Cell, DirectAtom, IndirectAtom, Noun, Slots, D, T};
-use nockvm::trace::{path_to_cord, write_serf_trace_safe, TraceInfo};
+use nockvm::trace::{path_to_cord, write_serf_trace_safe};
 use nockvm_macros::tas;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Duration;
 use tracing::{debug, warn};
 
+use crate::kernel::boot::TraceOpts;
 use crate::metrics::NockAppMetrics;
 use crate::nockapp::wire::{wire_to_noun, WireRepr};
 use crate::noun::slab::NounSlab;
@@ -105,7 +105,7 @@ impl<C: SerfCheckpoint + Send + 'static> SerfThread<C> {
         constant_hot_state: Vec<HotEntry>,
         nock_stack_size: usize,
         test_jets: Vec<NounSlab>,
-        trace: bool,
+        trace: TraceOpts,
     ) -> Result<Self> {
         let (action_sender, action_receiver) = mpsc::channel(1);
         let (event_number_sender, event_number_receiver) = oneshot::channel();
@@ -525,7 +525,7 @@ impl<C: SerfCheckpoint + 'static> Kernel<C> {
         checkpoint: Option<C>,
         hot_state: &[HotEntry],
         test_jets: Vec<NounSlab>,
-        trace: bool,
+        trace: TraceOpts,
     ) -> Result<Self> {
         let kernel_vec = Vec::from(kernel);
         let hot_state_vec = Vec::from(hot_state);
@@ -541,7 +541,7 @@ impl<C: SerfCheckpoint + 'static> Kernel<C> {
         checkpoint: Option<C>,
         hot_state: &[HotEntry],
         test_jets: Vec<NounSlab>,
-        trace: bool,
+        trace: TraceOpts,
     ) -> Result<Self> {
         let kernel_vec = Vec::from(kernel);
         let hot_state_vec = Vec::from(hot_state);
@@ -557,7 +557,7 @@ impl<C: SerfCheckpoint + 'static> Kernel<C> {
         checkpoint: Option<C>,
         hot_state: &[HotEntry],
         test_jets: Vec<NounSlab>,
-        trace: bool,
+        trace: TraceOpts,
     ) -> Result<Self> {
         let kernel_vec = Vec::from(kernel);
         let hot_state_vec = Vec::from(hot_state);
@@ -573,7 +573,7 @@ impl<C: SerfCheckpoint + 'static> Kernel<C> {
         checkpoint: Option<C>,
         hot_state: &[HotEntry],
         test_jets: Vec<NounSlab>,
-        trace: bool,
+        trace: TraceOpts,
     ) -> Result<Self> {
         let kernel_vec = Vec::from(kernel);
         let hot_state_vec = Vec::from(hot_state);
@@ -589,7 +589,7 @@ impl<C: SerfCheckpoint + 'static> Kernel<C> {
         checkpoint: Option<C>,
         hot_state: &[HotEntry],
         test_jets: Vec<NounSlab>,
-        trace: bool,
+        trace: TraceOpts,
     ) -> Result<Self> {
         let kernel_vec = Vec::from(kernel);
         let hot_state_vec = Vec::from(hot_state);
@@ -605,7 +605,7 @@ impl<C: SerfCheckpoint + 'static> Kernel<C> {
         checkpoint: Option<C>,
         hot_state: &[HotEntry],
         test_jets: Vec<NounSlab>,
-        trace: bool,
+        trace: TraceOpts,
     ) -> Result<Self> {
         let kernel_vec = Vec::from(kernel);
         let hot_state_vec = Vec::from(hot_state);
@@ -631,7 +631,7 @@ impl<C: SerfCheckpoint + 'static> Kernel<C> {
         kernel: &[u8],
         checkpoint: Option<C>,
         test_jets: Vec<NounSlab>,
-        trace: bool,
+        trace: TraceOpts,
     ) -> Result<Self> {
         Self::load_with_hot_state(kernel, checkpoint, &Vec::new(), test_jets, trace).await
     }
@@ -704,7 +704,7 @@ impl Serf {
     /// * `checkpoint` - Optional checkpoint to restore from.
     /// * `kernel_bytes` - Byte slice containing the kernel code.
     /// * `constant_hot_state` - Custom hot state entries.
-    /// * `trace` - Bool indicating whether to enable nockvm tracing.
+    /// * `trace_info` - Optional nockvm tracing implementation.
     ///
     /// # Returns
     ///
@@ -715,7 +715,7 @@ impl Serf {
         kernel_bytes: &[u8],
         constant_hot_state: &[HotEntry],
         test_jets: Vec<NounSlab>,
-        trace: bool,
+        trace: TraceOpts,
     ) -> Self {
         let hot_state = [URBIT_HOT_STATE, constant_hot_state].concat();
 
@@ -748,20 +748,7 @@ impl Serf {
 
         let event_num = Arc::new(AtomicU64::new(event_num_raw));
 
-        let trace_info = if trace {
-            let file = File::create("trace.json").expect("Cannot create trace file trace.json");
-            let pid = std::process::id();
-            let process_start = std::time::Instant::now();
-            Some(TraceInfo {
-                file,
-                pid,
-                process_start,
-            })
-        } else {
-            None
-        };
-
-        let mut context = create_context(stack, &hot_state, cold, trace_info, test_jets);
+        let mut context = create_context(stack, &hot_state, cold, trace.into(), test_jets);
         let cancel_token = context.cancel_token();
 
         let mut arvo = {

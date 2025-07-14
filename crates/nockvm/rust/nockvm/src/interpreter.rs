@@ -782,11 +782,13 @@ pub fn interpret(context: &mut Context, mut subject: Noun, formula: Noun) -> Res
                                     // We could trace on 2 as well, but 2 only comes from Hoon via
                                     // '.*', so we can assume it's never directly used to invoke
                                     // jetted code.
-                                    if context.trace_info.is_some() {
-                                        if let Some(path) = context.cold.matches(stack, &mut res) {
-                                            append_trace(stack, path);
-                                        };
-                                    };
+                                    if let Some((path, trace_info)) =
+                                        context.trace_info.as_mut().and_then(|v| {
+                                            context.cold.matches(stack, &mut res).zip(Some(v))
+                                        })
+                                    {
+                                        trace_info.append_trace(stack, path);
+                                    }
 
                                     subject = res;
                                     push_formula(stack, formula, true)?;
@@ -807,11 +809,13 @@ pub fn interpret(context: &mut Context, mut subject: Noun, formula: Noun) -> Res
                                     // We could trace on 2 as well, but 2 only comes from Hoon via
                                     // '.*', so we can assume it's never directly used to invoke
                                     // jetted code.
-                                    if context.trace_info.is_some() {
-                                        if let Some(path) = context.cold.matches(stack, &mut res) {
-                                            append_trace(stack, path);
-                                        };
-                                    };
+                                    if let Some((path, trace_info)) =
+                                        context.trace_info.as_mut().and_then(|v| {
+                                            context.cold.matches(stack, &mut res).zip(Some(v))
+                                        })
+                                    {
+                                        trace_info.append_trace(stack, path);
+                                    }
                                 }
                             } else {
                                 // Axis into core must be atom
@@ -1173,7 +1177,8 @@ fn push_formula(stack: &mut NockStack, formula: Noun, tail: bool) -> Result {
                             9 => {
                                 if let Ok(arg_cell) = formula_cell.tail().as_cell() {
                                     if let Ok(axis_atom) = arg_cell.head().as_atom() {
-                                        *stack.push() = NockWork::Work9(Nock9 {
+                                        let p = stack.push();
+                                        *p = NockWork::Work9(Nock9 {
                                             todo: Todo9::ComputeCore,
                                             axis: axis_atom,
                                             core: arg_cell.tail(),
@@ -1323,7 +1328,7 @@ fn mean_frame_push(stack: &mut NockStack, slots: usize) {
         let trace = *(stack.local_noun_pointer(0));
         stack.frame_push(slots + 2);
         *(stack.local_noun_pointer(0)) = trace;
-        *(stack.local_noun_pointer(1) as *mut *const TraceStack) = std::ptr::null();
+        *(stack.local_noun_pointer(1) as *mut *const Noun) = std::ptr::null();
     }
 }
 
@@ -1415,20 +1420,6 @@ pub fn inc(stack: &mut NockStack, atom: Atom) -> Atom {
                 }
             }
         }
-    }
-}
-
-/// Push onto the tracing stack
-fn append_trace(stack: &mut NockStack, path: Noun) {
-    unsafe {
-        let trace_stack = *(stack.local_noun_pointer(1) as *const *const TraceStack);
-        let new_trace_entry = stack.struct_alloc(1);
-        *new_trace_entry = TraceStack {
-            path,
-            start: Instant::now(),
-            next: trace_stack,
-        };
-        *(stack.local_noun_pointer(1) as *mut *const TraceStack) = new_trace_entry;
     }
 }
 

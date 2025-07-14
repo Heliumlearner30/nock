@@ -3841,6 +3841,8 @@ dependencies = [
  "nockchain-libp2p-io",
  "nockvm",
  "nockvm_macros",
+ "num_cpus",
+ "rand 0.8.5",
  "tempfile",
  "termcolor",
  "tokio",
@@ -3927,6 +3929,7 @@ dependencies = [
  "static_assertions",
  "thiserror 2.0.12",
  "tracing",
+ "tracing-core",
 ]
 
 [[package]]

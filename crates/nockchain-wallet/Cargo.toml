@@ -8,14 +8,18 @@ kernels = { workspace = true, features = ["wallet"] }
 nockapp = { workspace = true }
 nockvm = { workspace = true }
 nockvm_macros = { workspace = true }
+nockvm_crypto = { workspace = true, features = ["sha"] }
 
 bardecoder = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 crossterm.workspace = true
 either.workspace = true
 getrandom.workspace = true
+hmac.workspace = true
 image = { workspace = true }
+pbkdf2.workspace = true
 qrcode = { workspace = true }
+sha2.workspace = true
 ratatui.workspace = true
 tempfile.workspace = true
 termimad.workspace = true

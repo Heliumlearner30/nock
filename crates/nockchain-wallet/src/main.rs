@@ -125,6 +125,13 @@ pub enum Commands {
         seedphrase: String,
     },
 
+    /// Import a seed phrase and generate master keys
+    ImportSeedPhrase {
+        /// Seed phrase to import (12 or 24 words)
+        #[arg(short, long)]
+        seedphrase: String,
+    },
+
     /// Generate a master public key from a master private key
     GenMasterPubkey {
         /// Master private key (base58-encoded)
@@ -229,6 +236,7 @@ impl Commands {
             Commands::ExportKeys => "export-keys",
             Commands::SignTx { .. } => "sign-tx",
             Commands::GenMasterPrivkey { .. } => "gen-master-privkey",
+            Commands::ImportSeedPhrase { .. } => "import-seed-phrase",
             Commands::GenMasterPubkey { .. } => "gen-master-pubkey",
             Commands::Scan { .. } => "scan",
             Commands::ListNotes => "list-notes",
@@ -426,6 +434,22 @@ impl Wallet {
     ///
     /// * `seedphrase` - The seed phrase to generate the master private key from.
     fn gen_master_privkey(seedphrase: &str) -> CommandNoun<NounSlab> {
+        let mut slab = NounSlab::new();
+        let seedphrase_noun = make_tas(&mut slab, seedphrase).as_noun();
+        Self::wallet(
+            "gen-master-privkey",
+            &[seedphrase_noun],
+            Operation::Poke,
+            &mut slab,
+        )
+    }
+
+    /// Imports a seed phrase and generates master keys.
+    ///
+    /// # Arguments
+    ///
+    /// * `seedphrase` - The seed phrase to import (12 or 24 words).
+    fn import_seed_phrase(seedphrase: &str) -> CommandNoun<NounSlab> {
         let mut slab = NounSlab::new();
         let seedphrase_noun = make_tas(&mut slab, seedphrase).as_noun();
         Self::wallet(
@@ -833,6 +857,7 @@ async fn main() -> Result<(), NockAppError> {
         | Commands::ExportKeys
         | Commands::SignTx { .. }
         | Commands::GenMasterPrivkey { .. }
+        | Commands::ImportSeedPhrase { .. }
         | Commands::GenMasterPubkey { .. }
         | Commands::ExportMasterPubkey
         | Commands::ImportMasterPubkey { .. }
@@ -871,6 +896,7 @@ async fn main() -> Result<(), NockAppError> {
         Commands::ImportKeys { input } => Wallet::import_keys(input),
         Commands::ExportKeys => Wallet::export_keys(),
         Commands::GenMasterPrivkey { seedphrase } => Wallet::gen_master_privkey(seedphrase),
+        Commands::ImportSeedPhrase { seedphrase } => Wallet::import_seed_phrase(seedphrase),
         Commands::GenMasterPubkey {
             master_privkey,
             chain_code,
@@ -1156,6 +1182,186 @@ mod tests {
         .to_wire();
         let privkey_result = wallet.app.poke(wire, noun.clone()).await?;
         println!("privkey_result: {:?}", privkey_result);
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[cfg_attr(miri, ignore)]
+    async fn test_import_seed_phrase() -> Result<(), NockAppError> {
+        init_tracing();
+        let cli = BootCli::parse_from(&["--new"]);
+        let prover_hot_state = produce_prover_hot_state();
+        let nockapp = boot::setup(
+            KERNEL,
+            Some(cli.clone()),
+            prover_hot_state.as_slice(),
+            "wallet",
+            None,
+        )
+        .await
+        .map_err(|e| CrownError::Unknown(e.to_string()))?;
+        let mut wallet = Wallet::new(nockapp);
+        let seedphrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+        let (noun, op) = Wallet::import_seed_phrase(seedphrase)?;
+        println!("import_seed_phrase_slab: {:?}", noun);
+        let wire = WalletWire::Command(Commands::ImportSeedPhrase {
+            seedphrase: seedphrase.to_string(),
+        })
+        .to_wire();
+        let import_result = wallet.app.poke(wire, noun.clone()).await?;
+        println!("import_seed_phrase_result: {:?}", import_result);
+        
+        assert!(
+            import_result.len() >= 1,
+            "Expected import result to have at least one output"
+        );
+        
+        let exit_cause = unsafe { import_result[0].root() };
+        let code = exit_cause.as_cell()?.tail();
+        assert!(unsafe { code.raw_equals(&D(0)) }, "Expected exit code 0");
+        
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[cfg_attr(miri, ignore)]
+    async fn test_import_seed_phrase_12_words() -> Result<(), NockAppError> {
+        init_tracing();
+        let cli = BootCli::parse_from(&["--new"]);
+        let prover_hot_state = produce_prover_hot_state();
+        let nockapp = boot::setup(
+            KERNEL,
+            Some(cli.clone()),
+            prover_hot_state.as_slice(),
+            "wallet",
+            None,
+        )
+        .await
+        .map_err(|e| CrownError::Unknown(e.to_string()))?;
+        let mut wallet = Wallet::new(nockapp);
+        let seedphrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+        let (noun, op) = Wallet::import_seed_phrase(seedphrase)?;
+        let wire = WalletWire::Command(Commands::ImportSeedPhrase {
+            seedphrase: seedphrase.to_string(),
+        })
+        .to_wire();
+        let import_result = wallet.app.poke(wire, noun.clone()).await?;
+        
+        assert!(
+            import_result.len() >= 1,
+            "Expected import result to have at least one output"
+        );
+        
+        let exit_cause = unsafe { import_result[0].root() };
+        let code = exit_cause.as_cell()?.tail();
+        assert!(unsafe { code.raw_equals(&D(0)) }, "Expected exit code 0");
+        
+        // Test that we can show the seed phrase afterwards
+        let (show_noun, show_op) = Wallet::show_seedphrase()?;
+        let show_wire = WalletWire::Command(Commands::ShowSeedphrase).to_wire();
+        let show_result = wallet.app.poke(show_wire, show_noun).await?;
+        
+        assert!(
+            show_result.len() >= 1,
+            "Expected show seedphrase result to have at least one output"
+        );
+        
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[cfg_attr(miri, ignore)]
+    async fn test_import_seed_phrase_24_words() -> Result<(), NockAppError> {
+        init_tracing();
+        let cli = BootCli::parse_from(&["--new"]);
+        let prover_hot_state = produce_prover_hot_state();
+        let nockapp = boot::setup(
+            KERNEL,
+            Some(cli.clone()),
+            prover_hot_state.as_slice(),
+            "wallet",
+            None,
+        )
+        .await
+        .map_err(|e| CrownError::Unknown(e.to_string()))?;
+        let mut wallet = Wallet::new(nockapp);
+        let seedphrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon art";
+        let (noun, op) = Wallet::import_seed_phrase(seedphrase)?;
+        let wire = WalletWire::Command(Commands::ImportSeedPhrase {
+            seedphrase: seedphrase.to_string(),
+        })
+        .to_wire();
+        let import_result = wallet.app.poke(wire, noun.clone()).await?;
+        
+        assert!(
+            import_result.len() >= 1,
+            "Expected import result to have at least one output"
+        );
+        
+        let exit_cause = unsafe { import_result[0].root() };
+        let code = exit_cause.as_cell()?.tail();
+        assert!(unsafe { code.raw_equals(&D(0)) }, "Expected exit code 0");
+        
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[cfg_attr(miri, ignore)]
+    async fn test_import_seed_phrase_and_derive_child() -> Result<(), NockAppError> {
+        init_tracing();
+        let cli = BootCli::parse_from(&["--new"]);
+        let prover_hot_state = produce_prover_hot_state();
+        let nockapp = boot::setup(
+            KERNEL,
+            Some(cli.clone()),
+            prover_hot_state.as_slice(),
+            "wallet",
+            None,
+        )
+        .await
+        .map_err(|e| CrownError::Unknown(e.to_string()))?;
+        let mut wallet = Wallet::new(nockapp);
+        let seedphrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+        
+        // First import the seed phrase
+        let (noun, op) = Wallet::import_seed_phrase(seedphrase)?;
+        let wire = WalletWire::Command(Commands::ImportSeedPhrase {
+            seedphrase: seedphrase.to_string(),
+        })
+        .to_wire();
+        let import_result = wallet.app.poke(wire, noun.clone()).await?;
+        
+        assert!(
+            import_result.len() >= 1,
+            "Expected import result to have at least one output"
+        );
+        
+        let exit_cause = unsafe { import_result[0].root() };
+        let code = exit_cause.as_cell()?.tail();
+        assert!(unsafe { code.raw_equals(&D(0)) }, "Expected exit code 0");
+        
+        // Now derive a child key
+        let index = 0;
+        let hardened = true;
+        let label = Some("test-child".to_string());
+        let (child_noun, child_op) = Wallet::derive_child(index, hardened, &label)?;
+        let child_wire = WalletWire::Command(Commands::DeriveChild {
+            index,
+            hardened,
+            label,
+        })
+        .to_wire();
+        let child_result = wallet.app.poke(child_wire, child_noun).await?;
+        
+        assert!(
+            child_result.len() >= 1,
+            "Expected child derivation result to have at least one output"
+        );
+        
+        let child_exit_cause = unsafe { child_result[0].root() };
+        let child_code = child_exit_cause.as_cell()?.tail();
+        assert!(unsafe { child_code.raw_equals(&D(0)) }, "Expected child derivation exit code 0");
+        
         Ok(())
     }
 

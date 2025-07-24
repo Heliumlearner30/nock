@@ -4,6 +4,7 @@ use nockvm::noun::Noun;
 use num_traits::Pow;
 use tracing::debug;
 
+use super::Melt;
 use crate::based;
 use crate::form::math::base::*;
 use crate::form::poly::Belt;
@@ -60,6 +61,13 @@ impl Belt {
     #[inline(always)]
     pub fn inv(&self) -> Self {
         Belt(binv(self.0))
+    }
+
+    pub fn from_melt_vec(mut v: Vec<Melt>) -> Vec<Self> {
+        const _: [(); core::mem::size_of::<Melt>()] = [(); core::mem::size_of::<Belt>()];
+        v.iter_mut().for_each(|v| *v = Melt(Belt::from(*v).0));
+        // SAFETY: Melt and Belt have the same size and bit representation
+        unsafe { core::mem::transmute(v) }
     }
 }
 

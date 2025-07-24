@@ -11,7 +11,7 @@ pub enum FieldError {
     OrderedRootError,
 }
 
-pub fn based_check(a: u64) -> bool {
+pub const fn based_check(a: u64) -> bool {
     a < PRIME
 }
 

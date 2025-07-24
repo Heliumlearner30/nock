@@ -372,7 +372,7 @@ fn snag_as_digest(stack: &mut NockStack, m_noun: Noun, i: usize) -> Result<Noun,
     digest[3] = cut(stack, 6, 3, 1, buf)?.as_atom()?.as_u64()?;
     digest[4] = cut(stack, 6, 4, 1, buf)?.as_atom()?.as_u64()?;
 
-    Ok(digest_to_noundigest(stack, digest))
+    Ok(digest_to_noundigest(stack, digest.map(Belt)))
 }
 
 pub fn mary_to_list_jet(context: &mut Context, subject: Noun) -> Result<Noun, JetErr> {

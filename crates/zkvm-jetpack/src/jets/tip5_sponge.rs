@@ -6,6 +6,7 @@ use nockvm::mem::NockStack;
 use nockvm::noun::{Cell, Noun, T};
 
 use crate::form::tip5::{permute, RATE};
+use crate::form::{Belt, Melt};
 use crate::jets::tip5_jets::*;
 use crate::utils::*;
 
@@ -67,14 +68,11 @@ pub fn sponge_absorb_jet(context: &mut Context, subject: Noun) -> Result<Noun, J
     let (q, r) = tip5_calc_q_r(&input_vec);
     tip5_pad_vecbelt(&mut input_vec, r);
 
-    // bring input into montgomery space
-    tip5_montify_vecbelt(&mut input_vec);
-
     // process input in batches of size RATE
     tip5_absorb_input(&mut input_vec, &mut sponge, q);
 
     // update sponge in door
-    let new_sponge = vec_to_hoon_list(stack, &sponge);
+    let new_sponge = vec_to_hoon_list(stack, &sponge.map(|v| v.0));
     let edit = door_edit(stack, 6, new_sponge, door);
 
     Ok(edit)
@@ -106,18 +104,16 @@ pub fn sponge_squeeze_jet(context: &mut Context, subject: Noun) -> Result<Noun, 
     let sponge_noun = slot(door, 6)?;
     let mut sponge = hoon_list_to_sponge(sponge_noun)?;
 
-    let mut output = [0u64; RATE];
-    for i in 0..RATE {
-        output[i] = mont_reduction(sponge[i] as u128).0;
-    }
+    let output: [Melt; RATE] = sponge[..RATE].try_into().unwrap();
+    let output = output.map(Belt::from);
 
     permute(&mut sponge);
 
     // update sponge in door
-    let new_sponge = vec_to_hoon_list(stack, &sponge);
+    let new_sponge = vec_to_hoon_list(stack, &sponge.map(|v| v.0));
     let edit = door_edit(stack, 6, new_sponge, door);
 
-    let output_noun = vec_to_hoon_list(stack, &output);
+    let output_noun = vec_to_hoon_list(stack, &output.map(|v| v.0));
     let res = T(stack, &[output_noun, edit]);
     Ok(res)
 }

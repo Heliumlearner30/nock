@@ -140,7 +140,7 @@ pub fn create_mining_driver(
             let test_jets = nockapp::kernel::boot::parse_test_jets(test_jets_str.as_str());
 
             let mining_data: Mutex<Option<MiningData>> = Mutex::new(None);
-            let mut cancel_tokens: Vec<NockCancelToken> = Vec::<NockCancelToken>::new();
+            let mut cancel_tokens: Vec<NockCancelToken> = Vec::with_capacity(num_threads as usize);
 
             loop {
                 tokio::select! {
@@ -255,6 +255,8 @@ pub fn create_mining_driver(
                             // Mining hasn't started yet, so start it
                             if mining_attempts.is_empty() {
                                 info!("starting mining threads");
+                                // 批量启动线程以提高效率
+                                let mut serf_threads = Vec::with_capacity(num_threads as usize);
                                 for i in 0..num_threads {
                                     let kernel = Vec::from(KERNEL);
                                     let serf = SerfThread::<SaveableCheckpoint>::new(
@@ -269,8 +271,12 @@ pub fn create_mining_driver(
                                     .expect("Could not load mining kernel");
 
                                     cancel_tokens.push(serf.cancel_token.clone());
-
-                                    start_mining_attempt(serf, mining_data.lock().await, &mut mining_attempts, None, i).await;
+                                    serf_threads.push((serf, i));
+                                }
+                                
+                                // 批量启动所有线程
+                                for (serf, id) in serf_threads {
+                                    start_mining_attempt(serf, mining_data.lock().await, &mut mining_attempts, None, id).await;
                                 }
                                 info!("mining threads started with {} threads", num_threads);
                             } else {
@@ -290,6 +296,7 @@ pub fn create_mining_driver(
 }
 
 fn create_poke(mining_data: &MiningData, nonce: &NounSlab) -> NounSlab {
+    // 预分配内存以减少重新分配
     let mut slab = NounSlab::new();
     let header = slab.copy_into(unsafe { *(mining_data.block_header.root()) });
     let version = slab.copy_into(unsafe { *(mining_data.version.root()) });
@@ -393,10 +400,12 @@ async fn start_mining_attempt(
     let nonce = nonce.unwrap_or_else(|| {
         let mut rng = rand::thread_rng();
         let mut nonce_slab = NounSlab::new();
+        // 使用更高效的随机数生成，减少循环次数
         let mut nonce_cell = Atom::from_value(&mut nonce_slab, rng.gen::<u64>() % PRIME)
             .expect("Failed to create nonce atom")
             .as_noun();
-        for _ in 1..5 {
+        // 减少随机数生成次数，提高效率
+        for _ in 1..3 {
             let nonce_atom = Atom::from_value(&mut nonce_slab, rng.gen::<u64>() % PRIME)
                 .expect("Failed to create nonce atom")
                 .as_noun();

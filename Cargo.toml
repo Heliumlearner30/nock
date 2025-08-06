@@ -148,9 +148,11 @@ hickory-proto = "0.25.0-alpha.4"
 image = "0.24.7"
 # libp2p = "0.55.0"
 libp2p = { git = "https://github.com/libp2p/rust-libp2p.git", rev = "da0017ee887a868e231ed78c7de892779c17800d" }
+proc-macro2 = "1.0.91"
 qrcode = "0.13"
 quickcheck = "1.0.3"
 quickcheck_macros = "1.0"
+quote = "1.0.37"
 rand = "0.8.5"
 ratatui = "0.29.0"
 rayon = "1.8.0"
@@ -167,6 +169,7 @@ sha3 = "0.10.8"
 slotmap = "1.0.7"
 smallvec = "1.13.2"
 strum = { version = "0.26", features = ["derive"] }
+syn = { version = "2.0.39", features = ["full"] }
 termcolor = "1.4"
 testcontainers = { git = "https://github.com/bitemyapp/testcontainers-rs.git", rev = "54851fd9faf9b9cded9d681b46f87c056880d870" }
 thiserror = "2.0.11"

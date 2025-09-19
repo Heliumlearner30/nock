@@ -858,6 +858,32 @@ impl fmt::Debug for DebugPath<'_> {
 
 impl Slots for Cell {}
 impl private::RawSlots for Cell {
+    /// Axis calculation rules:
+    ///
+    /// - The root has axis `1`.
+    /// - From root to leaf:
+    ///   - left child (head) = `0`
+    ///   - right child (tail) = `1`
+    /// - Concatenate the 0/1 path from left to right to form the axis.
+    ///
+    /// Special cases:
+    /// - `[1]` selects the root
+    /// - `[0]` is invalid
+    ///
+    /// # Example
+    /// ```text
+    ///         cell(1)
+    ///         /     \
+    /// (0)head_1      tail_1(1)
+    ///               /      \
+    ///       (0)head_2       tail_2(1)
+    ///                      /      \
+    ///              (0)head_3       tail_3(1)
+    /// ```
+    ///
+    /// - `tail_3` → axis = `1->1->1->1`
+    /// - `head_3` → axis = `1->1->1->0`
+    /// - `head_1` → axis = `1->0`
     fn raw_slot(&self, axis: &BitSlice<u64, Lsb0>) -> Result<Noun> {
         let mut noun: Noun = self.as_noun();
         // Axis cannot be 0

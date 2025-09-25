@@ -113,6 +113,8 @@ pub struct NockchainCli {
     pub bind_public_grpc_addr: std::net::SocketAddr,
     #[arg(long, default_value = "5555")]
     pub bind_private_grpc_port: u16,
+    #[arg(long, help = "Message to include in a mined block", default_value = None)]
+    pub page_message: Option<String>,
 }
 
 impl NockchainCli {

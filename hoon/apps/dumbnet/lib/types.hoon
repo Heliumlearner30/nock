@@ -14,6 +14,7 @@
       kernel-state-3
       kernel-state-4
       kernel-state-5
+      kernel-state-6
   ==
 ::
 +$  kernel-state-0
@@ -79,7 +80,17 @@
       constants=blockchain-constants:dt
   ==
 ::
-+$  kernel-state  kernel-state-5
++$  kernel-state-6
+  $:  %6
+      c=consensus-state-6
+      a=admin-state-6
+      m=mining-state-6
+    ::
+      d=derived-state-6
+      constants=blockchain-constants:dt
+  ==
+::
++$  kernel-state  kernel-state-6
 ::
 +$  consensus-state-0
   $+  consensus-state-0
@@ -177,7 +188,9 @@
     ==
   ==
 ::
-+$  consensus-state  consensus-state-5
++$  consensus-state-6  $+(consensus-state-6 consensus-state-5)
+::
++$  consensus-state  consensus-state-6
 ::
 ::  you will not have lost any chain state if you lost pending state, you'd just have to
 ::  request data again from peers and reset your mining state
@@ -221,7 +234,9 @@
 ::
 +$  admin-state-5  $+(admin-state-5 admin-state-4)
 ::
-+$  admin-state  admin-state-5
++$  admin-state-6  $+(admin-state-6 admin-state-5)
+::
++$  admin-state  admin-state-6
 ::
 +$  derived-state-0
   $+  derived-state-0
@@ -242,7 +257,9 @@
 ::
 +$  derived-state-5  $+(derived-state-5 derived-state-4)
 ::
-+$  derived-state  derived-state-5
++$  derived-state-6  $+(derived-state-5 derived-state-5)
+::
++$  derived-state  derived-state-6
 ::
 +$  mining-state-0
   $+  mining-state-0
@@ -264,7 +281,17 @@
 ::
 +$  mining-state-5  $+(mining-state-4 mining-state-3)
 ::
-+$  mining-state  mining-state-5
++$  mining-state-6
+  $+  mining-state-6
+  $:  mining=?                          ::  build candidate blocks?
+      pubkeys=(z-set lock:dt)           ::  locks for coinbase in mined blocks
+      shares=(z-map lock:dt @)          ::  shares of coinbase+fees among locks
+      candidate-block=page:dt           ::  the next block we will attempt to mine.
+      candidate-acc=tx-acc:dt           ::  accumulator for txs in candidate block
+      next-nonce=noun-digest:tip5:zeke  ::  nonce being mined
+      =page-msg:dt                      ::  message to include in the candidate block
+  ==
++$  mining-state  mining-state-6
 ::
 +$  init-phase  $~(%.y ?)
 ::
@@ -279,6 +306,7 @@
 +$  command
   $+  command
   $%  [%pow prf=proof:sp dig=tip5-hash-atom:zeke bc=noun-digest:tip5:zeke nonce=noun-digest:tip5:zeke] :: check if a proof of work is good for the next block, issue a block if so
+      [%set-page-message p=(unit @t)]
       [%set-mining-key p=@t]  ::  set $lock for coinbase in mined blocks
       [%set-mining-key-advanced p=(list [share=@ m=@ keys=(list @t)])]  :: multisig and/or split coinbases
       [%enable-mining p=?]  ::  switch for generating candidate blocks for mining
@@ -305,6 +333,7 @@
       %enable-mining
       init-only-command
       %set-genesis-seal
+      %set-page-message
   ==
 ::  commands that can *only* be performed if init-phase is %.y
 +$  init-only-command

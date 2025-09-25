@@ -446,6 +446,8 @@ pub async fn init_with_kernel<J: Jammer + Send + 'static>(
 
     let prune_inbound = cli.prune_inbound;
 
+    let page_message = cli.page_message;
+
     let mine = cli.mine;
 
     let threads = if let Some(num_threads) = &cli.num_threads {
@@ -455,7 +457,7 @@ pub async fn init_with_kernel<J: Jammer + Send + 'static>(
     };
 
     let mining_driver =
-        crate::mining::create_mining_driver(mining_config, mine, threads, Some(mining_init_tx));
+        crate::mining::create_mining_driver(mining_config, page_message, mine, threads, Some(mining_init_tx));
     nockapp.add_io_driver(mining_driver).await;
 
     let libp2p_driver = nockchain_libp2p_io::driver::make_libp2p_driver(

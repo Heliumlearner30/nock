@@ -36,14 +36,14 @@
     ~&  [%nockchain-state-version -.arg]
     ::  cut
     |^
-    =.  k  ~>  %bout  (update-constants (check-checkpoints (state-n-to-5 arg)))
+    =.  k  ~>  %bout  (update-constants (check-checkpoints (state-n-to-6 arg)))
     =.  c.k  ~>  %bout  check-and-repair:con
     k
     ::  this arm should be renamed each state upgrade to state-n-to-[latest] and extended to loop through all upgrades
-    ++  state-n-to-5
+    ++  state-n-to-6
       |=  arg=load-kernel-state:dk
       ^-  kernel-state:dk
-      ?.  ?=(%5 -.arg)
+      ?.  ?=(%6 -.arg)
         ~>  %slog.[0 'load: State upgrade required']
         ?-  -.arg
             ::
@@ -52,8 +52,25 @@
           %2  $(arg (state-2-to-3 arg))
           %3  $(arg (state-3-to-4 arg))
           %4  $(arg (state-4-to-5 arg))
+          %5  $(arg (state-5-to-6 arg))
         ==
       arg
+    ::  upgrade kernel state 5 to kernel state 6
+    ++  state-5-to-6
+    |=  arg=kernel-state-5:dk
+    ^-  kernel-state-6:dk
+    =/  m=mining-state-6:dk
+      :* 
+        mining.m.arg
+        pubkeys.m.arg
+        shares.m.arg
+        candidate-block.m.arg
+        candidate-acc.m.arg
+        next-nonce.m.arg
+        *page-msg:t
+      ==
+    ~>  %slog.[0 'load: State version 5 to version 6']
+    [%6 c.arg a.arg m d.arg constants.arg]
     ::  upgrade kernel state 4 to kernel state 5
     ++  state-4-to-5
     |=  arg=kernel-state-4:dk
@@ -1070,6 +1087,9 @@
           %enable-mining
         do-enable-mining
       ::
+          %set-page-message
+        do-set-page-message
+      ::
           %timer
         do-timer
       ::
@@ -1211,6 +1231,14 @@
         ::~&  >  'generation of candidate blocks enabled.'
         =.  m.k  (set-mining:min p.command)
         =.  m.k  (heard-new-block:min c.k now)
+        `k
+      ::
+      ++  do-set-page-message
+        ^-  [(list effect:dk) kernel-state:dk]
+        ?>  ?=([%set-page-message *] command)
+        ?~  p.command
+          `k
+        =.  page-msg.m.k  (new:page-msg:t +.p.command)
         `k
       ::
       ++  do-timer

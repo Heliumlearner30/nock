@@ -4,7 +4,7 @@
 
 > 🚨 **Status**:  Pre-release development.  Nockup works but does not yet offer a stable interface and user experience.
 
-[NockApp](https://github.com/zorp-corp/nockchain) is a general-purpose framework for building apps that run the Nock ISA.  It is particularly well-suited for use with [Nockchain](https://nockchain.org) and the Nock ZKVM.
+[The NockApp platform](https://github.com/zorp-corp/nockchain) is a general-purpose framework for building apps that run using the Nock instruction set architecture.  It is particularly well-suited for use with [Nockchain](https://nockchain.org) and the Nock ZKVM.
 
 ![](./img/hero.jpg)
 
@@ -12,9 +12,9 @@
 
 ### From Script
 
-> 🚨 **Important**:  During pre-release development, this will fail due to hash mismatches on the binaries.  Use the "From Source" instructions instead.
+> 🚨 **Important**:  During pre-release development, this will fail due to hash mismatches on the a binaries.  Use the "From Source" instructions instead.
 
-Prerequisites: Rust toolchain, Git
+Prerequisites: Rust toolchain (`rustup`, `cargo`, &c.), Git.
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/sigilante/nockup/master/install.sh | bash
@@ -170,7 +170,30 @@ I (11:53:15) Pokes awaiting implementation
 
 The final product is, of course, a binary which you may run either via `nockup run` (as demonstrated here) or directly (from `./target/release`).
 
-### Project Manifests and Templates
+### Project Templates and Manifests
+
+A NockApp consists of a Rust wrapper and a Nock ISA kernel.  The wrapper handles command-line arguments, filesystem I/O, etc.  The kernel is the business logic.
+
+One of the design goals of Nockup is to avoid the need to write much, if any, Rust code to successfully deploy a NockApp.  To that end, we provide templates which by and large only expect the developer to write in Hoon or another language which targets the Nock ISA.
+
+A project is specified by its manifest file, which includes details like the project name and the template to use.  Many projects will prefer the `basic` template, but other options are available in `/templates`.
+
+#### Basic Templates
+
+- `basic`:  simplest NockApp template.
+- `grpc`:  gRPC listener and broadcaster.
+- `http-static`:  static HTTP file server.
+- `http-server`:  stateful HTTP server.
+- `repl`:  read-eval-print loop.
+
+#### Nockchain Templates
+
+- `chain`:  Nockchain listener, built using `nockchain-wallet`.  Demonstrates poking and peeking the chain state.
+- `oracle`:  Nockchain attestation poster, built using `nockchain-wallet`.  Demonstrates signing a message using a private key.
+- `remote`:  Nockchain remote instance gRPC interaction.  Demonstrates interacting with a Nockchain public instance via remote gRPC.
+- `rollup`:  Nockchain rollup bundler for NockApps.  Demonstrates producing a consistent rollup and pushing it to the chain.
+
+#### Manifests
 
 A project manifest is a file containing sufficient information to produce a basic NockApp from a template with specified imports.
 
@@ -191,21 +214,9 @@ template = "basic"
 
 Manifests let you set several project parameters and specify the template to use.  This information will also be used to populate a README file.  (By default we supply the [MIT License](https://opensource.org/licenses/MIT) and we specify the version as [0.1.0](https://0ver.org/).)
 
-One of the design goals of Nockup is to avoid the need to write much, if any, Rust code to successfully deploy a NockApp.  To that end, we provide templates which by and large only expect the developer to write in Hoon or another language which targets the Nock ISA.
-
-A project is specified by its manifest file, which includes details like the project name and the template to use.  Many projects will prefer the `basic` template, but other options are available in `/templates`.
-
-- `basic`:  simplest NockApp template.
-- `grpc`:  gRPC listener and broadcaster.
-- `http-static`:  static HTTP file server.
-- `http-server`:  stateful HTTP server.
-- `repl`:  read-eval-print loop.
-- `chain`:  Nockchain listener, simplified from `nockchain-wallet`.
-- `rollup`:  Nockchain rollup bundler for NockApps.
-
 #### Multiple Targets
 
-A Rust project (and _a fortiori_ a NockApp project) can produce more than one binary target.  This is scenario is demonstrated by the `grpc` template.
+A NockApp project can produce more than one binary target.  This is scenario is demonstrated by the `grpc` template.
 
 The default expectation for a single-binary project is to supply the following two files:
 
@@ -263,7 +274,7 @@ To that end, Nockup supports three patterns for importing libraries:
 2. Repository imports, simple structure.
 3. Nested repository imports.
 
-Examples of each are provided in [`default-manifest-with-libraries.toml`](https://github.com/sigilante/nockup/blob/master/default-manifest-with-libraries.toml).
+Examples of each are provided in [`example-manifest-with-libraries.toml`](https://github.com/sigilante/nockup/blob/master/manifests/example-manifest-with-libraries.toml).
 
 #### Single Libraries
 
@@ -416,14 +427,14 @@ Code building is a general-purpose computing process, like `eval`.  You should n
 * add Apple code signing support
 * update manifest files (and install/update strings) to `zorp-corp/nockchain`
 * unify batch/continuous kernels via `exit` event:  `[%exit code=@]`
-* Replit instance with release
 
 ### Later
 
-* `nockup test`
+* `nockup test` to run unit tests
 * expand repertoire of templates
   * list and ship appropriate Hoon libraries
 * `nockup publish`/`nockup clone` (awaiting PKI)
+* Replit instance (needs light client of Nockchain)
 
 ## Contributor's Guide
 

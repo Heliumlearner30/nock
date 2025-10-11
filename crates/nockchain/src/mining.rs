@@ -12,7 +12,7 @@ use nockapp::utils::NOCK_STACK_SIZE_TINY;
 use nockapp::CrownError;
 use nockchain_libp2p_io::tip5_util::tip5_hash_to_base58;
 use nockvm::interpreter::NockCancelToken;
-use nockvm::noun::{Atom, D, NO, T, YES};
+use nockvm::noun::{Atom, D, NO, T, YES, SIG};
 use nockvm_macros::tas;
 use rand::Rng;
 use tokio::sync::Mutex;
@@ -26,6 +26,7 @@ pub enum MiningWire {
     Candidate,
     SetPubKey,
     Enable,
+    SetPageMessage,
 }
 
 impl MiningWire {
@@ -35,6 +36,7 @@ impl MiningWire {
             MiningWire::SetPubKey => "setpubkey",
             MiningWire::Candidate => "candidate",
             MiningWire::Enable => "enable",
+            MiningWire::SetPageMessage => "setpagemsg",
         }
     }
 }
@@ -88,6 +90,7 @@ struct MiningData {
 
 pub fn create_mining_driver(
     mining_config: Option<Vec<MiningKeyConfig>>,
+    page_message: Option<String>,
     mine: bool,
     num_threads: u64,
     init_complete_tx: Option<tokio::sync::oneshot::Sender<()>>,
@@ -117,6 +120,8 @@ pub fn create_mining_driver(
                 set_mining_key_advanced(&handle, configs).await?;
             }
             enable_mining(&handle, mine).await?;
+
+            set_page_message(&handle, page_message).await?;
 
             if let Some(tx) = init_complete_tx {
                 tx.send(()).map_err(|_| {
@@ -361,6 +366,29 @@ async fn set_mining_key_advanced(
 
     handle
         .poke(MiningWire::SetPubKey.to_wire(), set_mining_key_slab)
+        .await
+}
+
+#[instrument(skip(handle))]
+async fn set_page_message(handle: &NockAppHandle, page_message: Option<String>) -> Result<PokeResult, NockAppError> {
+    let mut set_page_message_slab = NounSlab::new();
+    let set_page_message = Atom::from_value(&mut set_page_message_slab, "set-page-message")
+        .expect("Failed to create set-page-message atom");
+    let page_message_noun = if let Some(page_message) = page_message {
+        let atom = Atom::from_value(&mut set_page_message_slab, page_message)
+            .expect("Failed to create page message atom")
+            .as_noun();
+        T(&mut set_page_message_slab, &[SIG, atom])
+    } else {
+        SIG
+    };
+    let set_page_message_poke = T(
+        &mut set_page_message_slab,
+        &[D(tas!(b"command")), set_page_message.as_noun(), page_message_noun],
+    );
+    set_page_message_slab.set_root(set_page_message_poke);
+    handle
+        .poke(MiningWire::SetPageMessage.to_wire(), set_page_message_slab)
         .await
 }
 

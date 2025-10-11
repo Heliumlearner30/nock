@@ -257,6 +257,7 @@
         (~(got z-by targets.c) u.heaviest-block.c)
         shares.m
     ==
+  =.  msg.candidate-block.m  page-msg.m
   =.  candidate-acc.m
     (new:tx-acc:t (~(get z-by balance.c) u.heaviest-block.c))
   ::
